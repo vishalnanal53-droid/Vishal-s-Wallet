@@ -1,23 +1,25 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { TransactionType, PaymentMethod, Tag, TAG_COLORS, Transaction, UserSettings } from '../types';
-import { PlusCircle, Wallet, Smartphone, Banknote } from 'lucide-react';
+import { TransactionType, PaymentMethod, TAG_COLORS, Transaction, UserSettings } from '../types';
+import { PlusCircle, Wallet, Smartphone, Banknote, Plus, X } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 interface TransactionFormProps {
   transactions: Transaction[];
   settings: UserSettings | null;
 }
 
-const TAGS: Tag[] = ['Food', 'Snacks', 'Travel', 'Friends', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Others'];
+const DEFAULT_TAGS: string[] = ['Food', 'Snacks', 'Travel', 'Friends', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Others'];
 
 export default function TransactionForm({ transactions, settings }: TransactionFormProps) {
   const { user } = useAuth();
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
-  const [tag, setTag] = useState<Tag>('Food');
+  const [tag, setTag] = useState<string>('Food');
+  const [newTag, setNewTag] = useState('');
+  const [isAddingTag, setIsAddingTag] = useState(false);
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
@@ -55,6 +57,51 @@ export default function TransactionForm({ transactions, settings }: TransactionF
     }
   };
 
+  const customTags = (settings as any)?.custom_tags || [];
+  const allTags = [...DEFAULT_TAGS, ...customTags];
+
+  const handleAddTag = async () => {
+    if (!newTag.trim() || !user) return;
+    const tagToAdd = newTag.trim();
+    // Capitalize first letter
+    const formattedTag = tagToAdd.charAt(0).toUpperCase() + tagToAdd.slice(1);
+    
+    if (allTags.includes(formattedTag)) {
+      setNewTag('');
+      setIsAddingTag(false);
+      setTag(formattedTag);
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        custom_tags: arrayUnion(formattedTag)
+      });
+      setNewTag('');
+      setIsAddingTag(false);
+      setTag(formattedTag);
+    } catch (err) {
+      console.error("Error adding tag:", err);
+      setError("Failed to add tag");
+    }
+  };
+
+  const handleDeleteTag = async (tagToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    
+    if (!confirm(`Are you sure you want to delete the tag "${tagToDelete}"?`)) return;
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        custom_tags: arrayRemove(tagToDelete)
+      });
+      if (tag === tagToDelete) setTag(DEFAULT_TAGS[0]);
+    } catch (err) {
+      console.error("Error deleting tag:", err);
+    }
+  };
+
   const calculateStats = () => {
     const totalIncome = transactions
       .filter(t => t.type === 'income')
@@ -74,7 +121,11 @@ export default function TransactionForm({ transactions, settings }: TransactionF
       .filter(t => t.payment_method === 'Cash')
       .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
 
-    return { balance, upiBalance, cashBalance };
+    return { 
+      balance, 
+      upiBalance: upiBalance + ((settings as any)?.initial_upi || 0), 
+      cashBalance: cashBalance + ((settings as any)?.initial_cash || 0) 
+    };
   };
 
   const stats = calculateStats();
@@ -193,28 +244,72 @@ export default function TransactionForm({ transactions, settings }: TransactionF
             </label>
             <select
               value={tag}
-              onChange={(e) => setTag(e.target.value as Tag)}
+              onChange={(e) => setTag(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
             >
-              {TAGS.map((t) => (
+              {allTags.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
             </select>
             <div className="mt-2 flex flex-wrap gap-2">
-              {TAGS.map((t) => (
+              {allTags.map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTag(t)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium transition ${
-                    TAG_COLORS[t]
+                  className={`group relative px-3 py-1 rounded-full text-sm font-medium transition ${
+                    (TAG_COLORS as any)[t] || 'bg-gray-100 text-gray-800'
                   } ${tag === t ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
                 >
                   {t}
+                  {!DEFAULT_TAGS.includes(t) && (
+                    <span 
+                        onClick={(e) => handleDeleteTag(t, e)}
+                        className="ml-2 -mr-1 p-0.5 rounded-full hover:bg-red-200 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center"
+                        title="Delete Tag"
+                    >
+                        <X className="w-3 h-3" />
+                    </span>
+                  )}
                 </button>
               ))}
+              
+              {isAddingTag ? (
+                <div className="flex items-center space-x-2">
+                    <input 
+                        type="text" 
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        className="px-3 py-1 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-32"
+                        placeholder="New tag..."
+                        autoFocus
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddTag();
+                            } else if (e.key === 'Escape') {
+                                setIsAddingTag(false);
+                            }
+                        }}
+                    />
+                    <button type="button" onClick={handleAddTag} className="p-1 bg-green-100 text-green-600 rounded-full hover:bg-green-200">
+                        <Plus className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => setIsAddingTag(false)} className="p-1 bg-red-100 text-red-600 rounded-full hover:bg-red-200">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingTag(true)}
+                  className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 border border-dashed border-gray-400 flex items-center"
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Add
+                </button>
+              )}
             </div>
           </div>
 

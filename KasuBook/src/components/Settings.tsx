@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { UserSettings } from '../types';
-import { Save, User, DollarSign } from 'lucide-react';
+import { Save, User, Smartphone, Banknote } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +12,8 @@ interface SettingsProps {
 export default function Settings({ settings }: SettingsProps) {
   const { user } = useAuth();
   const [username, setUsername] = useState(settings.username);
-  const [initialAmount, setInitialAmount] = useState(settings.initial_amount.toString());
+  const [initialCash, setInitialCash] = useState(((settings as unknown).initial_cash || 0).toString());
+  const [initialUpi, setInitialUpi] = useState(((settings as any).initial_upi || 0).toString());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -23,11 +24,17 @@ export default function Settings({ settings }: SettingsProps) {
     setError('');
     setSuccess(false);
 
+    const cash = parseFloat(initialCash) || 0;
+    const upi = parseFloat(initialUpi) || 0;
+    const total = cash + upi;
+
     try {
       if (user) {
         await updateDoc(doc(db, 'users', user.uid), {
           username,
-          initial_amount: parseFloat(initialAmount),
+          initial_amount: total,
+          initial_cash: cash,
+          initial_upi: upi,
           updated_at: new Date().toISOString(),
         });
       }
@@ -44,6 +51,8 @@ export default function Settings({ settings }: SettingsProps) {
       setLoading(false);
     }
   };
+
+  const totalInitial = (parseFloat(initialCash) || 0) + (parseFloat(initialUpi) || 0);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -70,21 +79,43 @@ export default function Settings({ settings }: SettingsProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-              <DollarSign className="w-4 h-4 mr-2" />
-              Initial Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={initialAmount}
-              onChange={(e) => setInitialAmount(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
-              placeholder="0.00"
-              required
-            />
-            <p className="mt-1 text-sm text-gray-500">
-              Your starting balance (this will affect your current balance calculation)
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+              ₹ Initial Balance Breakdown
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1 flex items-center">
+                  <Banknote className="w-3 h-3 mr-1" /> Cash
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={initialCash}
+                  onChange={(e) => setInitialCash(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1 flex items-center">
+                  <Smartphone className="w-3 h-3 mr-1" /> UPI
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={initialUpi}
+                  onChange={(e) => setInitialUpi(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">
+              Total Initial Amount: <span className="font-bold">₹{totalInitial.toFixed(2)}</span>
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              Set your starting Cash and UPI balance separately.
             </p>
           </div>
 

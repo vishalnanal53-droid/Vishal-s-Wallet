@@ -31,6 +31,9 @@ export default function Dashboard() {
           id: user.uid,
           username: user.email?.split('@')[0] || 'User',
           initial_amount: 0,
+          initial_cash: 0,
+          initial_upi: 0,
+          custom_tags: [],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -74,7 +77,10 @@ export default function Dashboard() {
       .filter(t => t.payment_method === 'Cash')
       .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
 
-    return { upi, cash };
+    return { 
+      upi: upi + ((settings as any)?.initial_upi || 0), 
+      cash: cash + ((settings as any)?.initial_cash || 0) 
+    };
   };
 
   if (loading) {

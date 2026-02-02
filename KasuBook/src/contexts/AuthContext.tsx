@@ -45,6 +45,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         id: user.uid,
         username,
         initial_amount: 0,
+        initial_cash: 0,
+        initial_upi: 0,
+        custom_tags: [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

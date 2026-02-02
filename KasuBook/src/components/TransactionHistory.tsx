@@ -1,9 +1,6 @@
 import { useState } from 'react';
-import { Transaction, TAG_COLORS, Tag } from '../types';
-import { Search, Filter, Calendar, Trash2 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
+import { Transaction, TAG_COLORS } from '../types';
+import { Search, Filter, Calendar } from 'lucide-react';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
@@ -12,10 +9,9 @@ interface TransactionHistoryProps {
 type TimeFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
 
 export default function TransactionHistory({ transactions }: TransactionHistoryProps) {
-  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
-  const [tagFilter, setTagFilter] = useState<Tag | 'all'>('all');
+  const [tagFilter, setTagFilter] = useState<string>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
@@ -72,16 +68,6 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
     return filtered;
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this transaction?') || !user) return;
-
-    try {
-      await deleteDoc(doc(db, 'users', user.uid, 'transactions', id));
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-    }
-  };
-
   const filteredTransactions = filterTransactions();
 
   const totalIncome = filteredTransactions
@@ -91,6 +77,11 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
   const totalExpense = filteredTransactions
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const uniqueTags = Array.from(new Set([
+    ...Object.keys(TAG_COLORS),
+    ...transactions.map(t => t.tag)
+  ])).sort();
 
   return (
     <div className="space-y-6">
@@ -136,11 +127,11 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
               </label>
               <select
                 value={tagFilter}
-                onChange={(e) => setTagFilter(e.target.value as Tag | 'all')}
+                onChange={(e) => setTagFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
               >
                 <option value="all">All Tags</option>
-                {Object.keys(TAG_COLORS).map((tag) => (
+                {uniqueTags.map((tag) => (
                   <option key={tag} value={tag}>
                     {tag}
                   </option>
@@ -205,7 +196,7 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
                   <div className="flex items-center space-x-3 mb-2">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        TAG_COLORS[transaction.tag as Tag]
+                        (TAG_COLORS as any)[transaction.tag] || 'bg-gray-100 text-gray-800'
                       }`}
                     >
                       {transaction.tag}
@@ -231,13 +222,6 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
                   >
                     {transaction.type === 'income' ? '+' : '-'}₹{Number(transaction.amount).toFixed(2)}
                   </p>
-                  <button
-                    onClick={() => handleDelete(transaction.id)}
-                    className="text-red-500 hover:text-red-700 transition p-2 hover:bg-red-50 rounded-lg"
-                    title="Delete transaction"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
                 </div>
               </div>
             ))}
