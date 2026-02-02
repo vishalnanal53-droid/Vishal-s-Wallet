@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { Transaction, TAG_COLORS, Tag } from '../types';
 import { Search, Filter, Calendar, Trash2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
-  onRefresh: () => void;
 }
 
 type TimeFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
 
-export default function TransactionHistory({ transactions, onRefresh }: TransactionHistoryProps) {
+export default function TransactionHistory({ transactions }: TransactionHistoryProps) {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [tagFilter, setTagFilter] = useState<Tag | 'all'>('all');
@@ -39,21 +41,24 @@ export default function TransactionHistory({ transactions, onRefresh }: Transact
       case 'today':
         filtered = filtered.filter((t) => new Date(t.transaction_date) >= today);
         break;
-      case 'week':
+      case 'week': {
         const weekAgo = new Date(today);
         weekAgo.setDate(weekAgo.getDate() - 7);
         filtered = filtered.filter((t) => new Date(t.transaction_date) >= weekAgo);
         break;
-      case 'month':
+      }
+      case 'month': {
         const monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         filtered = filtered.filter((t) => new Date(t.transaction_date) >= monthAgo);
         break;
-      case 'year':
+      }
+      case 'year': {
         const yearAgo = new Date(today);
         yearAgo.setFullYear(yearAgo.getFullYear() - 1);
         filtered = filtered.filter((t) => new Date(t.transaction_date) >= yearAgo);
         break;
+      }
       case 'custom':
         if (customStartDate && customEndDate) {
           filtered = filtered.filter((t) => {
@@ -68,11 +73,10 @@ export default function TransactionHistory({ transactions, onRefresh }: Transact
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this transaction?')) return;
+    if (!confirm('Are you sure you want to delete this transaction?') || !user) return;
 
     try {
-      await supabase.from('transactions').delete().eq('id', id);
-      onRefresh();
+      await deleteDoc(doc(db, 'users', user.uid, 'transactions', id));
     } catch (error) {
       console.error('Error deleting transaction:', error);
     }

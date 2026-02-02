@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import { TransactionType, PaymentMethod, Tag, TAG_COLORS, Transaction, UserSettings } from '../types';
-import { PlusCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { PlusCircle, Wallet, Smartphone, Banknote } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 interface TransactionFormProps {
-  onTransactionAdded: () => void;
   transactions: Transaction[];
   settings: UserSettings | null;
 }
 
 const TAGS: Tag[] = ['Food', 'Snacks', 'Travel', 'Friends', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Others'];
 
-export default function TransactionForm({ onTransactionAdded, transactions, settings }: TransactionFormProps) {
+export default function TransactionForm({ transactions, settings }: TransactionFormProps) {
   const { user } = useAuth();
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
@@ -31,24 +31,25 @@ export default function TransactionForm({ onTransactionAdded, transactions, sett
     setError('');
 
     try {
-      const { error: insertError } = await supabase.from('transactions').insert({
-        user_id: user.id,
+      await addDoc(collection(db, 'users', user.uid, 'transactions'), {
+        user_id: user.uid,
         type,
         amount: parseFloat(amount),
         payment_method: paymentMethod,
         tag,
         description,
-        transaction_date: transactionDate,
+        transaction_date: transactionDate
       });
-
-      if (insertError) throw insertError;
 
       setAmount('');
       setDescription('');
       setTransactionDate(new Date().toISOString().split('T')[0]);
-      onTransactionAdded();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message || 'An error occurred');
+      } else {
+        setError('An error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,15 @@ export default function TransactionForm({ onTransactionAdded, transactions, sett
 
     const balance = Number(settings?.initial_amount || 0) + totalIncome - totalExpense;
 
-    return { totalIncome, totalExpense, balance };
+    const upiBalance = transactions
+      .filter(t => t.payment_method === 'UPI')
+      .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+
+    const cashBalance = transactions
+      .filter(t => t.payment_method === 'Cash')
+      .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+
+    return { balance, upiBalance, cashBalance };
   };
 
   const stats = calculateStats();
@@ -73,33 +82,33 @@ export default function TransactionForm({ onTransactionAdded, transactions, sett
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm mb-1">Total Income</p>
-              <p className="text-2xl font-bold">₹{stats.totalIncome.toFixed(2)}</p>
-            </div>
-            <TrendingUp className="w-10 h-10 text-green-100" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-red-100 text-sm mb-1">Total Expense</p>
-              <p className="text-2xl font-bold">₹{stats.totalExpense.toFixed(2)}</p>
-            </div>
-            <TrendingDown className="w-10 h-10 text-red-100" />
-          </div>
-        </div>
-
         <div className="bg-gradient-to-br from-indigo-400 to-purple-600 rounded-xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-indigo-100 text-sm mb-1">Current Balance</p>
+              <p className="text-indigo-100 text-sm mb-1">Total Amount</p>
               <p className="text-2xl font-bold">₹{stats.balance.toFixed(2)}</p>
             </div>
-            <PlusCircle className="w-10 h-10 text-indigo-100" />
+            <Wallet className="w-10 h-10 text-indigo-100" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm mb-1">UPI Amount</p>
+              <p className="text-2xl font-bold">₹{stats.upiBalance.toFixed(2)}</p>
+            </div>
+            <Smartphone className="w-10 h-10 text-blue-100" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm mb-1">Cash Amount</p>
+              <p className="text-2xl font-bold">₹{stats.cashBalance.toFixed(2)}</p>
+            </div>
+            <Banknote className="w-10 h-10 text-green-100" />
           </div>
         </div>
       </div>

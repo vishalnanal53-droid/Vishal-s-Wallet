@@ -1,55 +1,57 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import { Transaction, UserSettings } from '../types';
 import TransactionForm from './TransactionForm';
 import TransactionHistory from './TransactionHistory';
 import Settings from './Settings';
 import { Wallet, History, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { collection, query, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 type View = 'dashboard' | 'history' | 'settings';
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const [view, setView] = useState<View>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, [user]);
-
-  const loadData = async () => {
     if (!user) return;
+    setLoading(true);
 
-    try {
-      const [settingsResponse, transactionsResponse] = await Promise.all([
-        supabase.from('user_settings').select('*').eq('id', user.id).maybeSingle(),
-        supabase.from('transactions').select('*').eq('user_id', user.id).order('transaction_date', { ascending: false })
-      ]);
-
-      if (settingsResponse.data) {
-        setSettings(settingsResponse.data);
+    // Listen to settings
+    const unsubscribeSettings = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data() as UserSettings);
       } else {
-        const newSettings = {
-          id: user.id,
-          username: 'User',
+        // Create default settings if not exists
+        const defaultSettings = {
+          id: user.uid,
+          username: user.email?.split('@')[0] || 'User',
           initial_amount: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
-        await supabase.from('user_settings').insert(newSettings);
-        setSettings({ ...newSettings, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        setDoc(doc(db, 'users', user.uid), defaultSettings);
+        setSettings(defaultSettings);
       }
+    });
 
-      if (transactionsResponse.data) {
-        setTransactions(transactionsResponse.data);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
+    // Listen to transactions
+    const q = query(collection(db, 'users', user.uid, 'transactions'), orderBy('transaction_date', 'desc'));
+    const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
+      const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+      setTransactions(txs);
       setLoading(false);
-    }
-  };
+    });
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeTransactions();
+    };
+  }, [user]);
 
   const calculateBalance = () => {
     const totalIncome = transactions
@@ -63,12 +65,16 @@ export default function Dashboard() {
     return Number(settings?.initial_amount || 0) + totalIncome - totalExpense;
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  const calculateBreakdown = () => {
+    const upi = transactions
+      .filter(t => t.payment_method === 'UPI')
+      .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+
+    const cash = transactions
+      .filter(t => t.payment_method === 'Cash')
+      .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+
+    return { upi, cash };
   };
 
   if (loading) {
@@ -94,7 +100,7 @@ export default function Dashboard() {
               </div>
             </div>
             <button
-              onClick={handleLogout}
+              onClick={() => logout()}
               className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition backdrop-blur-sm"
             >
               <LogOut className="w-4 h-4" />
@@ -104,7 +110,18 @@ export default function Dashboard() {
 
           <div className="mt-6 bg-white/20 backdrop-blur-sm rounded-xl p-4">
             <p className="text-sm text-white/80 mb-1">Current Balance</p>
-            <p className="text-3xl font-bold">₹{calculateBalance().toFixed(2)}</p>
+            <p className="text-3xl font-bold mb-4">₹{calculateBalance().toFixed(2)}</p>
+            
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
+              <div>
+                <p className="text-xs text-white/80 mb-1">UPI Amount</p>
+                <p className="text-lg font-semibold">₹{calculateBreakdown().upi.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-white/80 mb-1">Cash Amount</p>
+                <p className="text-lg font-semibold">₹{calculateBreakdown().cash.toFixed(2)}</p>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -151,13 +168,13 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {view === 'dashboard' && (
-          <TransactionForm onTransactionAdded={loadData} transactions={transactions} settings={settings} />
+          <TransactionForm transactions={transactions} settings={settings} />
         )}
         {view === 'history' && (
-          <TransactionHistory transactions={transactions} onRefresh={loadData} />
+          <TransactionHistory transactions={transactions} />
         )}
         {view === 'settings' && settings && (
-          <Settings settings={settings} onUpdate={loadData} />
+          <Settings settings={settings} />
         )}
       </main>
     </div>

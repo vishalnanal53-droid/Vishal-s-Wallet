@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { UserSettings } from '../types';
 import { Save, User, DollarSign } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SettingsProps {
   settings: UserSettings;
-  onUpdate: () => void;
 }
 
-export default function Settings({ settings, onUpdate }: SettingsProps) {
+export default function Settings({ settings }: SettingsProps) {
+  const { user } = useAuth();
   const [username, setUsername] = useState(settings.username);
   const [initialAmount, setInitialAmount] = useState(settings.initial_amount.toString());
   const [loading, setLoading] = useState(false);
@@ -22,22 +24,22 @@ export default function Settings({ settings, onUpdate }: SettingsProps) {
     setSuccess(false);
 
     try {
-      const { error: updateError } = await supabase
-        .from('user_settings')
-        .update({
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
           username,
           initial_amount: parseFloat(initialAmount),
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', settings.id);
-
-      if (updateError) throw updateError;
+        });
+      }
 
       setSuccess(true);
-      onUpdate();
       setTimeout(() => setSuccess(false), 3000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message || 'An error occurred');
+      } else {
+        setError('An error occurred');
+      }
     } finally {
       setLoading(false);
     }

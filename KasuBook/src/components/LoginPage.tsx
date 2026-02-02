@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { Wallet } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
+  const { signIn, signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,12 +18,16 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        await signUp(email, password);
+        await signUp(email, password, username);
       } else {
         await signIn(email, password);
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message || 'An error occurred');
+      } else {
+        setError('An error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -45,6 +50,22 @@ export default function LoginPage() {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isSignUp && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                placeholder="Choose a username"
+                required
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email
