@@ -12,7 +12,7 @@ interface SettingsProps {
 export default function Settings({ settings }: SettingsProps) {
   const { user } = useAuth();
   const [username, setUsername] = useState(settings.username);
-  const [initialCash, setInitialCash] = useState(((settings as unknown).initial_cash || 0).toString());
+  const [initialCash, setInitialCash] = useState(((settings as any).initial_cash || 0).toString());
   const [initialUpi, setInitialUpi] = useState(((settings as any).initial_upi || 0).toString());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
