@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#9333EA"/>
+    </linearGradient>
+    <linearGradient id="walletBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.88"/>
+    </linearGradient>
+    <linearGradient id="pocket" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="coinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <filter id="coinShadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#92400E" flood-opacity="0.35"/>
+    </filter>
+    <filter id="walletShadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.18"/>
+    </filter>
+    <clipPath id="iconClip">
+      <rect width="512" height="512" rx="90"/>
+    </clipPath>
+  </defs>
+
+  <!-- ─── App-icon rounded-square background ──────────────────────── -->
+  <rect width="512" height="512" rx="90" fill="url(#bg)"/>
+
+  <!-- subtle radial highlight top-left for depth -->
+  <ellipse cx="120" cy="100" rx="220" ry="180"
+           fill="#FFFFFF" fill-opacity="0.07"/>
+
+  <g clip-path="url(#iconClip)">
+
+    <!-- ─── Wallet body (white card) ───────────────────────────────── -->
+    <rect x="80" y="148" width="352" height="230" rx="28"
+          fill="url(#walletBody)" filter="url(#walletShadow)"/>
+
+    <!-- wallet top-edge highlight -->
+    <rect x="80" y="148" width="352" height="6" rx="3"
+          fill="#FFFFFF"/>
+
+    <!-- ─── Pocket flap (top rounded strip) ────────────────────────── -->
+    <rect x="80" y="148" width="352" height="80" rx="28"
+          fill="url(#pocket)"/>
+    <!-- pocket bottom border -->
+    <rect x="80" y="218" width="352" height="2" rx="1"
+          fill="#6366F1" fill-opacity="0.18"/>
+
+    <!-- ─── Coin slot (right, golden coin with ₹) ─────────────────── -->
+    <circle cx="382" cy="270" r="44"
+            fill="url(#coinGrad)" filter="url(#coinShadow)"/>
+    <!-- coin rim -->
+    <circle cx="382" cy="270" r="44"
+            fill="none" stroke="#D97706" stroke-width="2.5" stroke-opacity="0.6"/>
+    <!-- ₹ on coin -->
+    <text x="382" y="284"
+          text-anchor="middle"
+          font-family="'Noto Sans', 'Segoe UI', sans-serif"
+          font-weight="700"
+          font-size="38"
+          fill="#92400E">₹</text>
+
+    <!-- ─── Large ₹ on the wallet face ────────────────────────────── -->
+    <!-- outer ring -->
+    <circle cx="210" cy="272" r="68"
+            fill="none" stroke="#6366F1" stroke-width="5" stroke-opacity="0.15"/>
+    <!-- ₹ glyph -->
+    <text x="210" y="298"
+          text-anchor="middle"
+          font-family="'Noto Sans', 'Segoe UI', sans-serif"
+          font-weight="700"
+          font-size="82"
+          fill="#6366F1" fill-opacity="0.82">₹</text>
+
+    <!-- ─── Small decorative lines (receipt / transaction lines) ──── -->
+    <rect x="130" y="360" width="52" height="6" rx="3" fill="#6366F1" fill-opacity="0.22"/>
+    <rect x="192" y="360" width="34" height="6" rx="3" fill="#6366F1" fill-opacity="0.14"/>
+    <rect x="236" y="360" width="48" height="6" rx="3" fill="#6366F1" fill-opacity="0.10"/>
+
+  </g>
+</svg>
