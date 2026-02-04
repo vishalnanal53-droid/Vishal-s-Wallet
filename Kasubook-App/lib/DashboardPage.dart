@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'models.dart';
 import 'firebase_service.dart';
 import 'transaction_form.dart';
@@ -166,7 +167,11 @@ class _DashboardPageState extends State<DashboardPage> {
                           color: Colors.white.withAlpha(50),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 24),
+                        child: SvgPicture.asset(
+                          'assets/kasubook_icon.svg',
+                          width: 24,
+                          height: 24,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Column(
