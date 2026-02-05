@@ -3,7 +3,7 @@ import { Transaction, UserSettings } from '../types';
 import TransactionForm from './TransactionForm';
 import TransactionHistory from './TransactionHistory';
 import Settings from './Settings';
-import { Wallet, History, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Wallet, History, Settings as SettingsIcon, LogOut, Smartphone } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,6 +18,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    document.title = 'KasuBook';
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (link) {
+      link.href = '/kasubook_icon.svg';
+    }
+
     if (!user) return;
     setLoading(true);
 
@@ -46,6 +52,14 @@ export default function Dashboard() {
     const q = query(collection(db, 'users', user.uid, 'transactions'), orderBy('transaction_date', 'desc'));
     const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
       const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+      // Sort by date and time descending (Newest to Oldest)
+      txs.sort((a: any, b: any) => {
+        const timeA = a.transaction_time || '00:00';
+        const timeB = b.transaction_time || '00:00';
+        const dateA = new Date(`${a.transaction_date}T${timeA}`);
+        const dateB = new Date(`${b.transaction_date}T${timeB}`);
+        return dateB.getTime() - dateA.getTime();
+      });
       setTransactions(txs);
       setLoading(false);
     });
@@ -93,24 +107,35 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg">
+      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                <Wallet className="w-6 h-6" />
+            <div className="flex items-center space-x-4">
+              {/* SVG Icon Container */}
+              <div className="bg-white/20 p-2 rounded-2xl backdrop-blur-md border border-white/30">
+                {/* Unngaludaiya kasubook_icon.svg code-ai inge paste pannavum */}
+                <img 
+                  src="/kasubook_icon.svg" 
+                  alt="Logo" 
+                  className="w-10 h-10" 
+                />
               </div>
+
               <div>
-                <h1 className="text-2xl font-bold">KasuBook</h1>
-                <p className="text-sm text-white/80">Hello, {settings?.username || 'User'}!</p>
+                <h1 className="text-2xl font-black tracking-tight">
+                  Kasu<span className="text-indigo-100">Book</span>
+                </h1>
+                <p className="text-xs font-medium text-white/80 uppercase tracking-wider">
+                  Hello, {settings?.username || 'User'}!
+                </p>
               </div>
             </div>
             <button
               onClick={() => logout()}
-              className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition backdrop-blur-sm"
+              className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2 rounded-xl transition-all duration-200 backdrop-blur-sm group"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
+              <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              <span className="font-medium text-sm">Logout</span>
             </button>
           </div>
 
@@ -177,7 +202,7 @@ export default function Dashboard() {
           <TransactionForm transactions={transactions} settings={settings} />
         )}
         {view === 'history' && (
-          <TransactionHistory transactions={transactions} />
+          <TransactionHistory transactions={transactions} settings={settings} />
         )}
         {view === 'settings' && settings && (
           <Settings settings={settings} />

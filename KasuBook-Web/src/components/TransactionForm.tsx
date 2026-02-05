@@ -22,12 +22,18 @@ export default function TransactionForm({ transactions, settings }: TransactionF
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [transactionTime, setTransactionTime] = useState(new Date().toTimeString().slice(0, 5));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (!description.trim()) {
+      setError('Description is required');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -40,12 +46,14 @@ export default function TransactionForm({ transactions, settings }: TransactionF
         payment_method: paymentMethod,
         tag,
         description,
-        transaction_date: transactionDate
+        transaction_date: transactionDate,
+        transaction_time: transactionTime
       });
 
       setAmount('');
       setDescription('');
       setTransactionDate(new Date().toISOString().split('T')[0]);
+      setTransactionTime(new Date().toTimeString().slice(0, 5));
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message || 'An error occurred');
@@ -132,38 +140,6 @@ export default function TransactionForm({ transactions, settings }: TransactionF
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-indigo-400 to-purple-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-indigo-100 text-sm mb-1">Total Amount</p>
-              <p className="text-2xl font-bold">₹{stats.balance.toFixed(2)}</p>
-            </div>
-            <Wallet className="w-10 h-10 text-indigo-100" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm mb-1">UPI Amount</p>
-              <p className="text-2xl font-bold">₹{stats.upiBalance.toFixed(2)}</p>
-            </div>
-            <Smartphone className="w-10 h-10 text-blue-100" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm mb-1">Cash Amount</p>
-              <p className="text-2xl font-bold">₹{stats.cashBalance.toFixed(2)}</p>
-            </div>
-            <Banknote className="w-10 h-10 text-green-100" />
-          </div>
-        </div>
-      </div>
-
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Add Transaction</h2>
 
@@ -313,22 +289,36 @@ export default function TransactionForm({ transactions, settings }: TransactionF
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={transactionDate}
-              onChange={(e) => setTransactionDate(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
-              required
-            />
+          <div className="flex space-x-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={transactionDate}
+                onChange={(e) => setTransactionDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                required
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Time
+              </label>
+              <input
+                type="time"
+                value={transactionTime}
+                onChange={(e) => setTransactionTime(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                required
+              />
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description (Optional)
+              Description
             </label>
             <textarea
               value={description}
@@ -336,6 +326,7 @@ export default function TransactionForm({ transactions, settings }: TransactionF
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
               rows={3}
               placeholder="Add a note..."
+              required
             />
           </div>
 

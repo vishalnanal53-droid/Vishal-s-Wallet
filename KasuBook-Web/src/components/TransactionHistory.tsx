@@ -1,22 +1,48 @@
 import { useState } from 'react';
-import { Transaction, TAG_COLORS } from '../types';
-import { Search, Filter, Calendar } from 'lucide-react';
+import { Transaction, TAG_COLORS, UserSettings } from '../types';
+import { Search, Filter, Calendar, Download, FileText, Table as TableIcon } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
+  settings?: UserSettings | null;
 }
 
 type TimeFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
 
-export default function TransactionHistory({ transactions }: TransactionHistoryProps) {
+export default function TransactionHistory({ transactions, settings }: TransactionHistoryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
+  // Calculate running balances (Chronological then reversed)
+  const transactionsWithBalance = [...transactions].reverse().reduce((acc: any[], t: any) => {
+    const prev = acc.length > 0 ? acc[acc.length - 1] : {
+      cashBalance: (settings as any)?.initial_cash || 0,
+      upiBalance: (settings as any)?.initial_upi || 0
+    };
+
+    let newCash = prev.cashBalance;
+    let newUpi = prev.upiBalance;
+    const amount = Number(t.amount);
+
+    if (t.payment_method === 'Cash') {
+      newCash = t.type === 'income' ? newCash + amount : newCash - amount;
+    } else {
+      newUpi = t.type === 'income' ? newUpi + amount : newUpi - amount;
+    }
+
+    acc.push({ ...t, cashBalance: newCash, upiBalance: newUpi });
+    return acc;
+  }, []).reverse();
+
   const filterTransactions = () => {
-    let filtered = [...transactions];
+    let filtered = [...transactionsWithBalance];
 
     if (searchQuery) {
       filtered = filtered.filter(
@@ -80,13 +106,115 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
 
   const uniqueTags = Array.from(new Set([
     ...Object.keys(TAG_COLORS),
-    ...transactions.map(t => t.tag)
+    ...transactions.map(t => t.tag),
+    ...((settings as any)?.custom_tags || [])
   ])).sort();
+
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('Transaction History', 14, 22);
+    doc.setFontSize(11);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    const tableData = filteredTransactions.map((t, index) => [
+      index + 1,
+      t.transaction_date,
+      t.transaction_time || '-',
+      t.description,
+      `Rs.${Number(t.amount).toFixed(2)}`,
+      t.type === 'income' ? `Rs.${Number(t.amount).toFixed(2)}` : '-',
+      t.type === 'expense' ? `Rs.${Number(t.amount).toFixed(2)}` : '-',
+      `Rs.${t.cashBalance.toFixed(2)}`,
+      `Rs.${t.upiBalance.toFixed(2)}`
+    ]);
+
+    // Add Total Row
+    tableData.push([
+      '', '', '', 'TOTAL', '',
+      `Rs.${totalIncome.toFixed(2)}`,
+      `Rs.${totalExpense.toFixed(2)}`,
+      '', ''
+    ]);
+
+    autoTable(doc, {
+      head: [['SNo', 'Date', 'Time', 'Description', 'Amount', 'Credit', 'Debit', 'Cash Bal', 'UPI Bal']],
+      body: tableData,
+      startY: 35,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [79, 70, 229] }
+    });
+
+    // Summary
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.text('Statement Summary:', 14, finalY);
+    doc.text(`Total Income (Credit): Rs.${totalIncome.toFixed(2)}`, 14, finalY + 8);
+    doc.text(`Total Expense (Debit): Rs.${totalExpense.toFixed(2)}`, 14, finalY + 16);
+    doc.text(`Net Balance Change: Rs.${(totalIncome - totalExpense).toFixed(2)}`, 14, finalY + 24);
+
+    doc.save('kasubook_history.pdf');
+  };
+
+  const downloadExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Transactions');
+
+    worksheet.columns = [
+      { header: 'SNo', key: 'sno', width: 8 },
+      { header: 'Date', key: 'date', width: 12 },
+      { header: 'Time', key: 'time', width: 10 },
+      { header: 'Description', key: 'description', width: 30 },
+      { header: 'Amount', key: 'amount', width: 12 },
+      { header: 'Credit', key: 'credit', width: 12 },
+      { header: 'Debit', key: 'debit', width: 12 },
+      { header: 'Cash Balance', key: 'cashBalance', width: 15 },
+      { header: 'UPI Balance', key: 'upiBalance', width: 15 },
+    ];
+
+    filteredTransactions.forEach((t, index) => {
+      worksheet.addRow({
+        sno: index + 1,
+        date: t.transaction_date,
+        time: t.transaction_time || '-',
+        description: t.description,
+        amount: Number(t.amount),
+        credit: t.type === 'income' ? Number(t.amount) : 0,
+        debit: t.type === 'expense' ? Number(t.amount) : 0,
+        cashBalance: t.cashBalance,
+        upiBalance: t.upiBalance
+      });
+    });
+
+    // Add Total Row
+    worksheet.addRow({
+      sno: '', date: '', time: '', description: 'TOTAL',
+      amount: '', credit: totalIncome, debit: totalExpense,
+      cashBalance: '', upiBalance: ''
+    });
+
+    // Add Summary
+    worksheet.addRow([]);
+    worksheet.addRow(['Statement Summary:']);
+    worksheet.addRow([`Total Income (Credit): Rs.${totalIncome.toFixed(2)}`]);
+    worksheet.addRow([`Total Expense (Debit): Rs.${totalExpense.toFixed(2)}`]);
+    worksheet.addRow([`Net Balance Change: Rs.${(totalIncome - totalExpense).toFixed(2)}`]);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), "kasubook_history.xlsx");
+  };
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-6">Transaction History</h2>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <h2 className="text-xl font-bold text-gray-800">Transaction History</h2>
+          <div className="flex gap-2">
+            <button onClick={downloadExcel} className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"><TableIcon className="w-4 h-4 mr-2"/> Excel</button>
+            <button onClick={downloadPDF} className="flex items-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"><FileText className="w-4 h-4 mr-2"/> PDF</button>
+          </div>
+        </div>
 
         <div className="space-y-4">
           <div className="relative">
@@ -212,6 +340,7 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
                       month: 'long',
                       day: 'numeric',
                     })}
+                    {transaction.transaction_time && ` • ${transaction.transaction_time}`}
                   </p>
                 </div>
                 <div className="flex items-center space-x-4">

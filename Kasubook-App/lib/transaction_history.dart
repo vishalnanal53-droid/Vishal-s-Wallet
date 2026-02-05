@@ -2,6 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'models.dart'; // re-exports _TAG_STYLES via the const map
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 
 // Pull the same tag-style map used by TransactionForm so chips are consistent.
 // (If you move TAG_STYLES to its own file later, import from there instead.)
@@ -27,8 +34,9 @@ enum _TimeFilter { all, today, week, month, year, custom }
 
 class TransactionHistory extends StatefulWidget {
   final List<Transaction> transactions;
+  final UserSettings? settings;
 
-  const TransactionHistory({super.key, required this.transactions});
+  const TransactionHistory({super.key, required this.transactions, this.settings});
 
   @override
   State<TransactionHistory> createState() => _TransactionHistoryState();
@@ -112,6 +120,8 @@ class _TransactionHistoryState extends State<TransactionHistory> {
         break;
     }
 
+    // Ensure sorted by Date descending (Newest first)
+    list.sort((a, b) => _txDate(b).compareTo(_txDate(a)));
 
     return list;
   }
@@ -121,8 +131,229 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   }
 
   List<String> get _uniqueTags {
-    final tags = <String>{'all', ..._TAG_STYLES_HIST.keys, ...widget.transactions.map((t) => t.tag)};
+    final tags = <String>{'all'};
+
+    // Add default tags
+    tags.addAll(_TAG_STYLES_HIST.keys);
+
+    // Add custom tags from settings
+    if (widget.settings != null) {
+      tags.addAll(widget.settings!.customTags);
+    }
+
+    // Add tags from transactions (fallback)
+    tags.addAll(widget.transactions.map((t) => t.tag));
+
     return tags.toList()..sort();
+  }
+
+  // ── Export Logic ─────────────────────────────────────────────────────────
+
+  /// Calculates running balances for ALL transactions to ensure accuracy,
+  /// then returns a map of { txId: { 'cash': val, 'upi': val } }.
+  Map<String, Map<String, double>> _calculateRunningBalances() {
+    // 1. Sort all transactions chronologically
+    final sorted = List<Transaction>.from(widget.transactions);
+    sorted.sort((a, b) => _txDate(a).compareTo(_txDate(b)));
+
+    // 2. Initialize with starting balances
+    double cash = widget.settings?.initialCash ?? 0;
+    double upi = widget.settings?.initialUpi ?? 0;
+
+    final Map<String, Map<String, double>> balances = {};
+
+    // 3. Iterate and update
+    for (var t in sorted) {
+      if (t.type == 'income') {
+        if (t.paymentMethod == 'Cash') cash += t.amount; else upi += t.amount;
+      } else {
+        if (t.paymentMethod == 'Cash') cash -= t.amount; else upi -= t.amount;
+      }
+      balances[t.id] = {'cash': cash, 'upi': upi};
+    }
+    return balances;
+  }
+
+  void _showExportOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.table_chart, color: Color(0xFF1D6F42)),
+              title: const Text('Export as Excel (.xlsx)'),
+              onTap: () {
+                Navigator.pop(context);
+                _generateExcel();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf, color: Color(0xFFF40F02)),
+              title: const Text('Export as PDF'),
+              onTap: () {
+                Navigator.pop(context);
+                _generatePdf();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateExcel() async {
+    final excel = Excel.createExcel();
+    final sheet = excel['Sheet1'];
+
+    // 1. Headers
+    sheet.appendRow([
+      TextCellValue('Sno'),
+      TextCellValue('Date'),
+      TextCellValue('Time'),
+      TextCellValue('Description'),
+      TextCellValue('Amount'),
+      TextCellValue('Credit'),
+      TextCellValue('Debit'),
+      TextCellValue('Cash Balance'),
+      TextCellValue('UPI Balance'),
+    ]);
+
+    // 2. Data
+    final filtered = _filtered;
+    final balances = _calculateRunningBalances();
+    double totalCredit = 0;
+    double totalDebit = 0;
+
+    for (var i = 0; i < filtered.length; i++) {
+      final t = filtered[i];
+      final b = balances[t.id] ?? {'cash': 0.0, 'upi': 0.0};
+      final isIncome = t.type == 'income';
+      
+      if (isIncome) totalCredit += t.amount; else totalDebit += t.amount;
+
+      sheet.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(_formatDateOnly(_txDate(t))),
+        TextCellValue(_formatTimeOnly(_txDate(t))),
+        TextCellValue('${t.tag} ${t.description.isNotEmpty ? "- ${t.description}" : ""}'),
+        DoubleCellValue(t.amount),
+        DoubleCellValue(isIncome ? t.amount : 0),
+        DoubleCellValue(!isIncome ? t.amount : 0),
+        DoubleCellValue(b['cash']!),
+        DoubleCellValue(b['upi']!),
+      ]);
+    }
+
+    // 3. Summary Footer
+    sheet.appendRow([TextCellValue('')]); // Spacer
+    sheet.appendRow([TextCellValue('SUMMARY OF STATEMENT')]);
+    sheet.appendRow([TextCellValue('Total Credit'), DoubleCellValue(totalCredit)]);
+    sheet.appendRow([TextCellValue('Total Debit'), DoubleCellValue(totalDebit)]);
+    
+    // Save
+    final fileBytes = excel.save();
+    if (fileBytes != null) {
+      final directory = await getApplicationDocumentsDirectory();
+      final path = '${directory.path}/Kasubook_Statement_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+      final file = File(path)..createSync(recursive: true);
+      await file.writeAsBytes(fileBytes);
+      await OpenFile.open(path);
+    }
+  }
+
+  Future<void> _generatePdf() async {
+    final pdf = pw.Document();
+    final filtered = _filtered;
+    final balances = _calculateRunningBalances();
+
+    // Calculate totals
+    double totalCredit = 0;
+    double totalDebit = 0;
+    for (var t in filtered) {
+      if (t.type == 'income') totalCredit += t.amount; else totalDebit += t.amount;
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return [
+            pw.Header(
+              level: 0,
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('KasuBook Statement', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('Generated: ${DateTime.now().toString().split('.')[0]}', style: const pw.TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            
+            // Table
+            pw.TableHelper.fromTextArray(
+              headers: ['Sno', 'Date', 'Time', 'Description', 'Credit', 'Debit', 'Cash Bal', 'UPI Bal'],
+              columnWidths: {
+                0: const pw.FixedColumnWidth(30), // Sno
+                1: const pw.FixedColumnWidth(60), // Date
+                2: const pw.FixedColumnWidth(50), // Time
+                3: const pw.FlexColumnWidth(),    // Desc
+                4: const pw.FixedColumnWidth(50), // Credit
+                5: const pw.FixedColumnWidth(50), // Debit
+                6: const pw.FixedColumnWidth(60), // Cash Bal
+                7: const pw.FixedColumnWidth(60), // UPI Bal
+              },
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo),
+              rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+              cellAlignments: {
+                0: pw.Alignment.center,
+                4: pw.Alignment.centerRight,
+                5: pw.Alignment.centerRight,
+                6: pw.Alignment.centerRight,
+                7: pw.Alignment.centerRight,
+              },
+              data: List<List<dynamic>>.generate(filtered.length, (index) {
+                final t = filtered[index];
+                final b = balances[t.id] ?? {'cash': 0.0, 'upi': 0.0};
+                final isIncome = t.type == 'income';
+                return [
+                  index + 1,
+                  _formatDateOnly(_txDate(t)),
+                  _formatTimeOnly(_txDate(t)),
+                  '${t.tag}\n${t.description}',
+                  isIncome ? t.amount.toStringAsFixed(2) : '-',
+                  !isIncome ? t.amount.toStringAsFixed(2) : '-',
+                  b['cash']!.toStringAsFixed(2),
+                  b['upi']!.toStringAsFixed(2),
+                ];
+              }),
+            ),
+            
+            pw.SizedBox(height: 20),
+
+            // Summary
+            pw.Container(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text('Summary of Statement', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                  pw.Divider(),
+                  pw.Text('Total Credit:   + ${totalCredit.toStringAsFixed(2)}', style: const pw.TextStyle(color: PdfColors.green700)),
+                  pw.Text('Total Debit:    - ${totalDebit.toStringAsFixed(2)}', style: const pw.TextStyle(color: PdfColors.red700)),
+                ],
+              ),
+            ),
+          ];
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
   }
 
   // ── Date pickers ─────────────────────────────────────────────────────────
@@ -172,7 +403,17 @@ class _TransactionHistoryState extends State<TransactionHistory> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Transaction History', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Transaction History', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                  IconButton(
+                    onPressed: _showExportOptions,
+                    icon: const Icon(Icons.download_rounded, color: Color(0xFF6366F1)),
+                    tooltip: 'Download Statement',
+                  ),
+                ],
+              ),
               const SizedBox(height: 18),
 
               // Search bar
@@ -387,6 +628,26 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   }
 }
 
+String _formatDateTime(DateTime d) {
+  final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  final hour = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
+  final ampm = d.hour >= 12 ? 'PM' : 'AM';
+  final min = d.minute.toString().padLeft(2, '0');
+  return '${months[d.month - 1]} ${d.day}, ${d.year} • $hour:$min $ampm';
+}
+
+String _formatDateOnly(DateTime d) {
+  final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+String _formatTimeOnly(DateTime d) {
+  final hour = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
+  final ampm = d.hour >= 12 ? 'PM' : 'AM';
+  final min = d.minute.toString().padLeft(2, '0');
+  return '$hour:$min $ampm';
+}
+
 // ─── Single transaction row ─────────────────────────────────────────────────
 class _TransactionRow extends StatelessWidget {
   final Transaction tx;
@@ -399,9 +660,8 @@ class _TransactionRow extends StatelessWidget {
     final amountColor = isIncome ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
     final style = _TAG_STYLES_HIST[tx.tag] ?? const _HistTagStyle(bg: Color(0xFFF3F4F6), fg: Color(0xFF374151));
 
-    final date = DateTime.tryParse(tx.transactionDate);
-    final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    final dateStr = date != null ? '${months[date.month - 1]} ${date.day}, ${date.year}' : tx.transactionDate;
+    final date = DateTime.tryParse(tx.transactionDate) ?? DateTime(2020);
+    final dateStr = _formatDateTime(date);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),

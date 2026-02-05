@@ -111,7 +111,7 @@ class _TransactionFormState extends State<TransactionForm> {
         amount: double.parse(_amountController.text.trim()),
         paymentMethod: _paymentMethod,
         tag: _selectedTag,
-        transactionDate: _selectedDate.toIso8601String().split('T')[0],
+        transactionDate: _selectedDate.toIso8601String(),
         description: _descriptionController.text.trim(),
       );
 
@@ -193,7 +193,7 @@ class _TransactionFormState extends State<TransactionForm> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
@@ -205,7 +205,26 @@ class _TransactionFormState extends State<TransactionForm> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+
+    if (pickedDate != null) {
+      if (!mounted) return;
+      // After picking date, pick time
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_selectedDate),
+        builder: (context, child) => Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(primary: Color(0xFF6366F1)),
+          ),
+          child: child!,
+        ),
+      );
+
+      setState(() {
+        final time = pickedTime ?? TimeOfDay.fromDateTime(_selectedDate);
+        _selectedDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, time.hour, time.minute);
+      });
+    }
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -216,18 +235,6 @@ class _TransactionFormState extends State<TransactionForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── 3 Stat Cards ─────────────────────────────────────────────────
-        Row(
-          children: [
-            Expanded(child: _statCard('Total Amount', stats['balance']!, const [Color(0xFF60A5FA), Color(0xFF9333EA)], Icons.account_balance_wallet_rounded)),
-            const SizedBox(width: 10),
-            Expanded(child: _statCard('UPI Amount', stats['upi']!, const [Color(0xFF60A5FA), Color(0xFF3B82F6)], Icons.smartphone)),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _statCard('Cash Amount', stats['cash']!, const [Color(0xFF34D399), Color(0xFF16A34A)], Icons.currency_rupee),
-        const SizedBox(height: 20),
-
         // ── Add Transaction Card ─────────────────────────────────────────
         Container(
           decoration: BoxDecoration(
@@ -306,7 +313,7 @@ class _TransactionFormState extends State<TransactionForm> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                          _formatDateDisplay(_selectedDate),
                           style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
                         ),
                         const Icon(Icons.calendar_today, color: Color(0xFF6B7280), size: 18),
@@ -317,11 +324,15 @@ class _TransactionFormState extends State<TransactionForm> {
                 const SizedBox(height: 18),
 
                 // Description
-                _label('Description (Optional)'),
+                _label('Description'),
                 TextFormField(
                   controller: _descriptionController,
                   decoration: _inputDeco('Add a note...'),
                   maxLines: 3,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Description is required';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 18),
 
@@ -545,5 +556,12 @@ class _TransactionFormState extends State<TransactionForm> {
         ],
       ),
     );
+  }
+
+  String _formatDateDisplay(DateTime d) {
+    final hour = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
+    final ampm = d.hour >= 12 ? 'PM' : 'AM';
+    final min = d.minute.toString().padLeft(2, '0');
+    return '${d.day}/${d.month}/${d.year}  $hour:$min $ampm';
   }
 }

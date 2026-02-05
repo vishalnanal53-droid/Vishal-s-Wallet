@@ -124,7 +124,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
-                  child: TransactionHistory(transactions: _transactions),
+                  child: TransactionHistory(transactions: _transactions, settings: _settings),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
