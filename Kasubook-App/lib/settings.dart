@@ -54,12 +54,16 @@ class _SettingsState extends State<Settings> {
       _loading = true;
     });
 
+    // If it's not currently locked, we lock it now upon save.
+    final shouldLock = !widget.settings.initialAmountLocked;
+
     try {
       await _fb.updateSettings(
         uid: uid,
         username: username,
         initialCash: _cash,
         initialUpi: _upi,
+        lockInitialAmount: shouldLock,
       );
 
       setState(() => _success = true);
@@ -78,6 +82,8 @@ class _SettingsState extends State<Settings> {
   // ── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final isLocked = widget.settings.initialAmountLocked;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -109,7 +115,29 @@ class _SettingsState extends State<Settings> {
               const SizedBox(height: 24),
 
               // ── Initial Balance Breakdown ────────────────────────────────
-              _labelWithIcon('Initial Balance Breakdown', Icons.currency_rupee),
+              Row(
+                children: [
+                  _labelWithIcon('Initial Balance Breakdown', Icons.currency_rupee),
+                  if (isLocked) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: const Text('Locked', style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w500)),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+                child: const Text("Enter the amount you currently have at the start. Once entered, this will be fixed. Any other changes should be added in your transaction.", style: TextStyle(fontSize: 13, color: Color(0xFF1E40AF), height: 1.4)),
+              ),
               const SizedBox(height: 12),
 
               Row(
@@ -131,6 +159,7 @@ class _SettingsState extends State<Settings> {
                           controller: _cashController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: _inputDeco('0.00'),
+                          enabled: !isLocked,
                           onChanged: (_) => setState(() {}), // rebuild to update total
                         ),
                       ],
@@ -154,6 +183,7 @@ class _SettingsState extends State<Settings> {
                           controller: _upiController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: _inputDeco('0.00'),
+                          enabled: !isLocked,
                           onChanged: (_) => setState(() {}),
                         ),
                       ],
@@ -183,10 +213,7 @@ class _SettingsState extends State<Settings> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Set your starting Cash and UPI balance separately.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-              ),
+              const Text('Set your starting Cash and UPI balance separately.', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
               const SizedBox(height: 20),
 
               // ── Error banner ────────────────────────────────────────────
@@ -256,6 +283,29 @@ class _SettingsState extends State<Settings> {
                 'Track your income and expenses, categorize transactions, '
                 'and stay on top of your finances with ease.',
                 style: TextStyle(fontSize: 14, color: Color(0xFF4B5563), height: 1.5),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // ── Terms and Conditions ─────────────────────────────────────────
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(30), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Terms and Conditions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+              const SizedBox(height: 10),
+              const Text(
+                'By using KasuBook, you agree to track your expenses responsibly. '
+                'Data is stored securely on Firebase. We are not responsible for any financial discrepancies or data loss.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF4B5563), height: 1.5),
               ),
             ],
           ),

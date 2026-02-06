@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { TransactionType, PaymentMethod, TAG_COLORS, Transaction, UserSettings } from '../types';
-import { PlusCircle, Wallet, Smartphone, Banknote, Plus, X } from 'lucide-react';
+import { PlusCircle, Plus, X } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
@@ -12,7 +12,7 @@ interface TransactionFormProps {
 
 const DEFAULT_TAGS: string[] = ['Food', 'Snacks', 'Travel', 'Friends', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Others'];
 
-export default function TransactionForm({ transactions, settings }: TransactionFormProps) {
+export default function TransactionForm({ settings }: TransactionFormProps) {
   const { user } = useAuth();
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
@@ -22,9 +22,16 @@ export default function TransactionForm({ transactions, settings }: TransactionF
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
-  const [transactionTime, setTransactionTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [transactionTime, setTransactionTime] = useState(new Date().toLocaleTimeString('en-GB', { hour12: false }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTransactionTime(new Date().toLocaleTimeString('en-GB', { hour12: false }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +60,6 @@ export default function TransactionForm({ transactions, settings }: TransactionF
       setAmount('');
       setDescription('');
       setTransactionDate(new Date().toISOString().split('T')[0]);
-      setTransactionTime(new Date().toTimeString().slice(0, 5));
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message || 'An error occurred');
@@ -110,33 +116,33 @@ export default function TransactionForm({ transactions, settings }: TransactionF
     }
   };
 
-  const calculateStats = () => {
-    const totalIncome = transactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+  // const calculateStats = () => {
+  //   const totalIncome = transactions
+  //     .filter(t => t.type === 'income')
+  //     .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const totalExpense = transactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+  //   const totalExpense = transactions
+  //     .filter(t => t.type === 'expense')
+  //     .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const balance = Number(settings?.initial_amount || 0) + totalIncome - totalExpense;
+  //   const balance = Number(settings?.initial_amount || 0) + totalIncome - totalExpense;
 
-    const upiBalance = transactions
-      .filter(t => t.payment_method === 'UPI')
-      .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+  //   const upiBalance = transactions
+  //     .filter(t => t.payment_method === 'UPI')
+  //     .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
 
-    const cashBalance = transactions
-      .filter(t => t.payment_method === 'Cash')
-      .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+  //   const cashBalance = transactions
+  //     .filter(t => t.payment_method === 'Cash')
+  //     .reduce((sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
 
-    return { 
-      balance, 
-      upiBalance: upiBalance + ((settings as any)?.initial_upi || 0), 
-      cashBalance: cashBalance + ((settings as any)?.initial_cash || 0) 
-    };
-  };
+  //   return { 
+  //     balance, 
+  //     upiBalance: upiBalance + ((settings as any)?.initial_upi || 0), 
+  //     cashBalance: cashBalance + ((settings as any)?.initial_cash || 0) 
+  //   };
+  // };
 
-  const stats = calculateStats();
+  // const stats = calculateStats();
 
   return (
     <div className="space-y-6">
@@ -308,10 +314,10 @@ export default function TransactionForm({ transactions, settings }: TransactionF
               </label>
               <input
                 type="time"
+                step="1"
                 value={transactionTime}
-                onChange={(e) => setTransactionTime(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
-                required
+                readOnly
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none transition"
               />
             </div>
           </div>

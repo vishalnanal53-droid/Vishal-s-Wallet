@@ -1,6 +1,7 @@
 // ─── transaction_form.dart ──────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'models.dart';
 import 'firebase_service.dart';
 
@@ -56,11 +57,33 @@ class _TransactionFormState extends State<TransactionForm> {
   bool _isAddingTag = false;
   bool _loading = false;
   String? _error;
+  Timer? _timer;
 
   final _fb = FirebaseService();
 
   @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          final now = DateTime.now();
+          _selectedDate = DateTime(
+            _selectedDate.year,
+            _selectedDate.month,
+            _selectedDate.day,
+            now.hour,
+            now.minute,
+            now.second,
+          );
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _timer?.cancel();
     _amountController.dispose();
     _descriptionController.dispose();
     _newTagController.dispose();
@@ -192,8 +215,8 @@ class _TransactionFormState extends State<TransactionForm> {
     }
   }
 
-  Future<void> _pickDate() async {
-    final pickedDate = await showDatePicker(
+  Future<void> _pickDateOnly() async {
+    final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
@@ -205,24 +228,16 @@ class _TransactionFormState extends State<TransactionForm> {
         child: child!,
       ),
     );
-
-    if (pickedDate != null) {
-      if (!mounted) return;
-      // After picking date, pick time
-      final pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_selectedDate),
-        builder: (context, child) => Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: Color(0xFF6366F1)),
-          ),
-          child: child!,
-        ),
-      );
-
+    if (picked != null) {
       setState(() {
-        final time = pickedTime ?? TimeOfDay.fromDateTime(_selectedDate);
-        _selectedDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, time.hour, time.minute);
+        _selectedDate = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          _selectedDate.hour,
+          _selectedDate.minute,
+          _selectedDate.second,
+        );
       });
     }
   }
@@ -299,27 +314,65 @@ class _TransactionFormState extends State<TransactionForm> {
                 ),
                 const SizedBox(height: 18),
 
-                // Date
-                _label('Date'),
-                GestureDetector(
-                  onTap: _pickDate,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Color(0xFFD1D5DB)),
-                      borderRadius: BorderRadius.circular(8),
+                // Date & Time Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Date'),
+                          GestureDetector(
+                            onTap: _pickDateOnly,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFD1D5DB)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _formatDateOnly(_selectedDate),
+                                    style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+                                  ),
+                                  const Icon(Icons.calendar_today, color: Color(0xFF6B7280), size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _formatDateDisplay(_selectedDate),
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
-                        ),
-                        const Icon(Icons.calendar_today, color: Color(0xFF6B7280), size: 18),
-                      ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Time'),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFFD1D5DB)),
+                              borderRadius: BorderRadius.circular(8),
+                              color: const Color(0xFFF3F4F6),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _formatTimeOnly(_selectedDate),
+                                  style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                                ),
+                                const Icon(Icons.access_time, color: Color(0xFF9CA3AF), size: 18),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
                 const SizedBox(height: 18),
 
@@ -558,10 +611,15 @@ class _TransactionFormState extends State<TransactionForm> {
     );
   }
 
-  String _formatDateDisplay(DateTime d) {
+  String _formatDateOnly(DateTime d) {
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
+  String _formatTimeOnly(DateTime d) {
     final hour = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
     final ampm = d.hour >= 12 ? 'PM' : 'AM';
     final min = d.minute.toString().padLeft(2, '0');
-    return '${d.day}/${d.month}/${d.year}  $hour:$min $ampm';
+    final sec = d.second.toString().padLeft(2, '0');
+    return '$hour:$min:$sec $ampm';
   }
 }

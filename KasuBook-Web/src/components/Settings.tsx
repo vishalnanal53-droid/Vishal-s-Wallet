@@ -18,6 +18,8 @@ export default function Settings({ settings }: SettingsProps) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  const isInitialAmountLocked = (settings as any).initial_amount_locked || false;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -30,13 +32,19 @@ export default function Settings({ settings }: SettingsProps) {
 
     try {
       if (user) {
-        await updateDoc(doc(db, 'users', user.uid), {
+        const updateData: any = {
           username,
-          initial_amount: total,
-          initial_cash: cash,
-          initial_upi: upi,
           updated_at: new Date().toISOString(),
-        });
+        };
+
+        if (!isInitialAmountLocked) {
+          updateData.initial_amount = total;
+          updateData.initial_cash = cash;
+          updateData.initial_upi = upi;
+          updateData.initial_amount_locked = total > 0;
+        }
+
+        await updateDoc(doc(db, 'users', user.uid), updateData);
       }
 
       setSuccess(true);
@@ -81,8 +89,18 @@ export default function Settings({ settings }: SettingsProps) {
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
               ₹ Initial Balance Breakdown
+              {isInitialAmountLocked && (
+                <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                  Locked
+                </span>
+              )}
             </h3>
             
+            <div className="mb-4 p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100">
+              
+              <p>Enter the amount you currently have at the start. Once entered, this will be fixed. Any other changes should be added in your transaction.</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1 flex items-center">
@@ -93,8 +111,11 @@ export default function Settings({ settings }: SettingsProps) {
                   step="0.01"
                   value={initialCash}
                   onChange={(e) => setInitialCash(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition ${
+                    isInitialAmountLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+                  }`}
                   placeholder="0.00"
+                  disabled={isInitialAmountLocked}
                 />
               </div>
               <div>
@@ -106,8 +127,11 @@ export default function Settings({ settings }: SettingsProps) {
                   step="0.01"
                   value={initialUpi}
                   onChange={(e) => setInitialUpi(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition ${
+                    isInitialAmountLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+                  }`}
                   placeholder="0.00"
+                  disabled={isInitialAmountLocked}
                 />
               </div>
             </div>
@@ -146,6 +170,14 @@ export default function Settings({ settings }: SettingsProps) {
           <p className="text-sm text-gray-600">
             KasuBook is your personal money management companion. Track your income and expenses,
             categorize transactions, and stay on top of your finances with ease.
+          </p>
+        </div>
+
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-medium text-gray-800 mb-2">Terms and Conditions</h3>
+          <p className="text-sm text-gray-600">
+            By using KasuBook, you agree to track your expenses responsibly. 
+            Data is stored securely on Firebase. We are not responsible for any financial discrepancies or data loss.
           </p>
         </div>
       </div>

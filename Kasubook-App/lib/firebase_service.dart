@@ -50,6 +50,7 @@ class FirebaseService {
       'initial_cash': 0,
       'initial_upi': 0,
       'custom_tags': [],
+      'initial_amount_locked': false,
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
     });
@@ -84,6 +85,7 @@ class FirebaseService {
         'initial_cash': 0,
         'initial_upi': 0,
         'custom_tags': [],
+        'initial_amount_locked': false,
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       });
@@ -96,15 +98,22 @@ class FirebaseService {
     required String username,
     required double initialCash,
     required double initialUpi,
+    bool? lockInitialAmount,
   }) async {
     final total = initialCash + initialUpi;
-    await firestore.collection('users').doc(uid).update({
+    final data = <String, dynamic>{
       'username': username,
       'initial_amount': total,
       'initial_cash': initialCash,
       'initial_upi': initialUpi,
       'updated_at': DateTime.now().toIso8601String(),
-    });
+    };
+
+    if (lockInitialAmount == true) {
+      data['initial_amount_locked'] = true;
+    }
+
+    await firestore.collection('users').doc(uid).update(data);
   }
 
   /// Add a custom tag (arrayUnion).

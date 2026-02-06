@@ -39,6 +39,7 @@ class UserSettings {
   final double initialCash;
   final double initialUpi;
   final List<String> customTags;
+  final bool initialAmountLocked;
   final String createdAt;
   final String updatedAt;
 
@@ -49,6 +50,7 @@ class UserSettings {
     this.initialCash = 0,
     this.initialUpi = 0,
     this.customTags = const [],
+    this.initialAmountLocked = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -61,6 +63,7 @@ class UserSettings {
       initialCash: (map['initial_cash'] as num).toDouble(),
       initialUpi: (map['initial_upi'] as num).toDouble(),
       customTags: (map['custom_tags'] as List<dynamic>).cast<String>(),
+      initialAmountLocked: (map['initial_amount_locked'] as bool?) ?? false,
       createdAt: map['created_at'] as String,
       updatedAt: map['updated_at'] as String,
     );
