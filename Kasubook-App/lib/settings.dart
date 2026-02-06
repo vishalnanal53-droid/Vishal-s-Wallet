@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'models.dart';
 import 'firebase_service.dart';
+import 'notification_service.dart';
 
 class Settings extends StatefulWidget {
   final UserSettings settings;
@@ -22,6 +23,9 @@ class _SettingsState extends State<Settings> {
   String? _error;
   bool _success = false;
 
+  bool _notificationsEnabled = false;
+  final _notificationService = NotificationService();
+
   final _fb = FirebaseService();
 
   @override
@@ -30,6 +34,12 @@ class _SettingsState extends State<Settings> {
     _cashController.dispose();
     _upiController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationService.init();
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
@@ -215,6 +225,29 @@ class _SettingsState extends State<Settings> {
               const SizedBox(height: 4),
               const Text('Set your starting Cash and UPI balance separately.', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
               const SizedBox(height: 20),
+
+              // ── Notifications ────────────────────────────────────────────
+              _labelWithIcon('Notifications', Icons.notifications_outlined),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Daily Reminder', style: TextStyle(fontSize: 14, color: Color(0xFF374151))),
+                subtitle: const Text('Get frequent reminders to log expenses', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                value: _notificationsEnabled,
+                activeColor: const Color(0xFF6366F1),
+                onChanged: (value) async {
+                  if (value) {
+                    bool granted = await _notificationService.requestPermissions();
+                    if (granted) {
+                      await _notificationService.scheduleDailyReminders();
+                      setState(() => _notificationsEnabled = true);
+                    }
+                  } else {
+                    await _notificationService.cancelAll();
+                    setState(() => _notificationsEnabled = false);
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
 
               // ── Error banner ────────────────────────────────────────────
               if (_error != null) ...[
