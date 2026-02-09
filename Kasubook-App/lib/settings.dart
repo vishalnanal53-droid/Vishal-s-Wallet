@@ -40,6 +40,13 @@ class _SettingsState extends State<Settings> {
   void initState() {
     super.initState();
     _notificationService.init();
+    _checkNotificationPermissions();
+  }
+
+  Future<void> _checkNotificationPermissions() async {
+    // Just check if permissions are granted
+    final granted = await _notificationService.requestPermissions();
+    if (mounted) setState(() => _notificationsEnabled = granted);
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
@@ -78,7 +85,7 @@ class _SettingsState extends State<Settings> {
 
       setState(() => _success = true);
 
-      // Auto-dismiss success banner after 3 seconds (mirrors React setTimeout)
+      // Auto-dismiss success banner after 3 seconds
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) setState(() => _success = false);
       });
@@ -183,7 +190,7 @@ class _SettingsState extends State<Settings> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.smartphone, size: 14, color: Color(0xFF6B7280)),
+                            const Icon(Icons.account_balance, size: 14, color: Color(0xFF6B7280)),
                             const SizedBox(width: 4),
                             const Text('UPI', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                           ],
@@ -228,24 +235,66 @@ class _SettingsState extends State<Settings> {
 
               // ── Notifications ────────────────────────────────────────────
               _labelWithIcon('Notifications', Icons.notifications_outlined),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Daily Reminder', style: TextStyle(fontSize: 14, color: Color(0xFF374151))),
-                subtitle: const Text('Get frequent reminders to log expenses', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                value: _notificationsEnabled,
-                activeColor: const Color(0xFF6366F1),
-                onChanged: (value) async {
-                  if (value) {
-                    bool granted = await _notificationService.requestPermissions();
-                    if (granted) {
-                      await _notificationService.scheduleDailyReminders();
-                      setState(() => _notificationsEnabled = true);
-                    }
-                  } else {
-                    await _notificationService.cancelAll();
-                    setState(() => _notificationsEnabled = false);
-                  }
-                },
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _notificationsEnabled ? Icons.check_circle : Icons.info_outline,
+                      color: _notificationsEnabled ? const Color(0xFF0284C7) : const Color(0xFF64748B),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _notificationsEnabled 
+                                ? 'Notifications Enabled ✓' 
+                                : 'Enable Notifications',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'You will receive admin notifications automatically',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!_notificationsEnabled)
+                      TextButton(
+                        onPressed: () async {
+                          final granted = await _notificationService.requestPermissions();
+                          if (mounted) {
+                            setState(() => _notificationsEnabled = granted);
+                            if (granted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('✓ Notifications enabled!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: const Text('Enable'),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -303,7 +352,7 @@ class _SettingsState extends State<Settings> {
           decoration: BoxDecoration(
             color: const Color(0xFFF9FAFB),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Color(0xFFE5E7EB)),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
           padding: const EdgeInsets.all(18),
           child: Column(

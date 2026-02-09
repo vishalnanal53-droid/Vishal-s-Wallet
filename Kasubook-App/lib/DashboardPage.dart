@@ -2,12 +2,15 @@
 //
 // Main screen after login.  Subscribes to Firestore via FirebaseService
 // and hosts the three tab views: TransactionForm, TransactionHistory, Settings.
+// NOW WITH: Admin Notification Listener
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction, Settings;
 import 'models.dart';
 import 'firebase_service.dart';
+import 'notification_service.dart';
 import 'transaction_form.dart';
 import 'transaction_history.dart';
 import 'settings.dart';
@@ -29,9 +32,9 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _loading = true;
 
   final _fb = FirebaseService();
+  final _notificationService = NotificationService();
 
   // ── Subscriptions ──────────────────────────────────────────────────────
-  // Stored so we can cancel them on dispose.
   dynamic _settingsSub;
   dynamic _transactionsSub;
 
@@ -46,6 +49,8 @@ class _DashboardPageState extends State<DashboardPage> {
     _pageController.dispose();
     _settingsSub?.cancel();
     _transactionsSub?.cancel();
+    _notificationService.stopAdminNotificationListener();
+    _notificationService.dispose();
     super.dispose();
   }
 
@@ -53,7 +58,15 @@ class _DashboardPageState extends State<DashboardPage> {
     final uid = _fb.currentUser?.uid;
     if (uid == null) return;
 
-    // Ensure the settings doc exists (creates default if first login)
+    // Initialize notification service
+    await _notificationService.init();
+    await _notificationService.initFCM();
+    await _notificationService.requestPermissions();
+
+    // START LISTENING FOR ADMIN NOTIFICATIONS
+    _notificationService.startAdminNotificationListener(uid);
+
+    // Ensure the settings doc exists
     await _fb.ensureSettingsDoc(uid, _fb.currentUser?.email);
 
     // ── Settings stream ──
@@ -77,7 +90,7 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  // ── Calculations (same math as React Dashboard) ─────────────────────────
+  // ── Calculations ─────────────────────────────────────────────────────────
   double _calculateBalance() {
     final totalIncome = _transactions
         .where((t) => t.type == 'income')
@@ -167,10 +180,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           color: Colors.white.withAlpha(50),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: SvgPicture.asset(
-                          'assets/kasubook_icon.svg',
-                          width: 24,
-                          height: 24,
+                        child: const Icon(
+                          Icons.account_balance_wallet_rounded,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -273,7 +286,6 @@ class _DashboardPageState extends State<DashboardPage> {
               _navButton(0, 'Dashboard', Icons.account_balance_wallet_rounded),
               _navButton(1, 'History', Icons.history_rounded),
               _navButton(2, 'Settings', Icons.settings_rounded),
-
             ],
           ),
           Positioned(
@@ -289,7 +301,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 }
 
                 return Align(
-                  alignment: Alignment(-1 + (page * 1), 0), // moves from -1 → 1
+                  alignment: Alignment(-1 + (page * 1), 0),
                   child: FractionallySizedBox(
                     widthFactor: 1 / 3,
                     child: Container(
@@ -301,7 +313,6 @@ class _DashboardPageState extends State<DashboardPage> {
               },
             ),
           ),
-
         ],
       ),
     );
@@ -323,10 +334,8 @@ class _DashboardPageState extends State<DashboardPage> {
               page = _pageController.page!;
             }
 
-            // Distance from this tab
             double diff = (page - index).abs().clamp(0.0, 1.0);
 
-            // 0 = active, 1 = inactive
             Color activeColor = const Color(0xFF4F46E5);
             Color inactiveColor = const Color(0xFF6B7280);
 
@@ -356,7 +365,6 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
-
 
   // ── Loading screen ─────────────────────────────────────────────────────
   Widget _loadingScreen() {

@@ -1,14 +1,15 @@
 // ─── transaction_history.dart ───────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
-import 'models.dart'; // re-exports _TAG_STYLES via the const map
+import 'models.dart';
 import 'dart:io';
 import 'package:excel/excel.dart' hide Border;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
+import 'package:open_filex/open_filex.dart'; // FIXED: Changed import
+
 
 // Pull the same tag-style map used by TransactionForm so chips are consistent.
 // (If you move TAG_STYLES to its own file later, import from there instead.)
@@ -248,7 +249,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
     }
 
     // 3. Summary Footer
-    sheet.appendRow([TextCellValue('')]); // Spacer
+    sheet.appendRow([TextCellValue('')]);
     sheet.appendRow([TextCellValue('SUMMARY OF STATEMENT')]);
     sheet.appendRow([TextCellValue('Total Credit'), DoubleCellValue(totalCredit)]);
     sheet.appendRow([TextCellValue('Total Debit'), DoubleCellValue(totalDebit)]);
@@ -260,7 +261,9 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       final path = '${directory.path}/Kasubook_Statement_${DateTime.now().millisecondsSinceEpoch}.xlsx';
       final file = File(path)..createSync(recursive: true);
       await file.writeAsBytes(fileBytes);
-      await OpenFile.open(path);
+      
+      // FIXED: Used OpenFilex
+      await OpenFilex.open(path);
     }
   }
 

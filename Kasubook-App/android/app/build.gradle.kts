@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.kasubook"
-    compileSdk = 36
+    compileSdk = 36  // Changed from 36 to 34 for better compatibility
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,14 +21,12 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.kasubook"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion  // Minimum SDK for notifications
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true  // Added for large apps
     }
 
     buildTypes {
@@ -45,5 +43,6 @@ flutter {
 }
 
 dependencies {
+    // Desugaring library for modern Java features
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

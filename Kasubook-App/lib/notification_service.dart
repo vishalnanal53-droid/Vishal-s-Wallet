@@ -1,7 +1,17 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+// ── Top-level Background Handler ──
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -10,16 +20,9 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
-
-  // Motivational Messages for different times of the day
-  final List<String> _messages = [
-    "Kaalai Vanakkam! ☀️ Start fresh. Did you spend anything yet?",
-    "Tea break-ah? ☕ Coffee or snacks expense irundha update pannunga!",
-    "Lunch time! 🍱 Don't forget to log your meal expenses.",
-    "KasuBook check! 📝 Chinna expense-ah irundhalum note pannunga.",
-    "Evening vibes! 🌆 Any travel or shopping costs to add?",
-    "Day ends here! 🌙 Check your wallet and finish today's entries."
-  ];
+  
+  // Stream subscription for Firebase listener
+  StreamSubscription<QuerySnapshot>? _notificationSubscription;
 
   Future<void> init() async {
     tz.initializeTimeZones();
@@ -40,6 +43,25 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  Future<void> initFCM() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        showNotification(
+          message.notification!.title ?? 'KasuBook',
+          message.notification!.body ?? '',
+        );
+      }
+    });
   }
 
   Future<bool> requestPermissions() async {
@@ -64,51 +86,83 @@ class NotificationService {
     return false;
   }
 
-  /// Schedules notifications every 3 hours starting from 6 AM to 9 PM
-  Future<void> scheduleDailyReminders() async {
-    // Hours: 6 AM, 9 AM, 12 PM, 3 PM, 6 PM, 9 PM
-    final List<int> reminderHours = [6, 9, 12, 15, 18, 21];
+  /// Listen for admin notifications from Firebase
+  /// When Notification_send is true, show alert and update to false
+  void startAdminNotificationListener(String userId) {
+    _notificationSubscription?.cancel();
+    
+    _notificationSubscription = FirebaseFirestore.instance
+        .collection('Notification')
+        .where('Notification_send', isEqualTo: true)
+        .snapshots()
+        .listen((snapshot) async {
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        
+        // Show notification
+        await showNotification(
+          data['title'] ?? 'KasuBook Alert',
+          data['message'] ?? 'You have a new notification',
+        );
+        
+        // Update Firebase to false to prevent repeated alerts
+        await doc.reference.update({
+          'Notification_send': false,
+          'delivered_at': DateTime.now().toIso8601String(),
+        });
+      }
+    });
+  }
 
-    for (int i = 0; i < reminderHours.length; i++) {
-      int hour = reminderHours[i];
-      
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        i, // Unique ID for each time slot (0 to 5)
-        'KasuBook Reminder 💰',
-        _messages[i], // Picks the specific message for that time
-        _nextInstanceOfHour(hour),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'kasubook_reminders',
-            'Daily Budget Reminders',
-            channelDescription: 'Notifications sent every 3 hours to log expenses',
-            importance: Importance.max,
-            priority: Priority.high,
-          ),
-          iOS: DarwinNotificationDetails(),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time, // Repeats daily
-      );
-    }
+  /// Stop listening to admin notifications
+  void stopAdminNotificationListener() {
+    _notificationSubscription?.cancel();
+    _notificationSubscription = null;
+  }
+
+  Future<void> showNotification(String title, String body) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'kasubook_alerts',
+      'KasuBook Alerts',
+      channelDescription: 'Important notifications from KasuBook',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+    
+    // Generates a unique ID based on current time
+    int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    
+    await flutterLocalNotificationsPlugin.show(
+      notificationId,
+      title,
+      body,
+      details,
+    );
   }
 
   Future<void> cancelAll() async {
     await flutterLocalNotificationsPlugin.cancelAll();
   }
 
-  /// Helper to calculate the next occurrence of a specific hour
-  tz.TZDateTime _nextInstanceOfHour(int hour) {
-    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
-    
-    // If the time has already passed today, schedule for tomorrow
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-    return scheduledDate;
+  Future<bool> areNotificationsScheduled() async {
+    final pending = await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+    return pending.isNotEmpty;
+  }
+  
+  void dispose() {
+    _notificationSubscription?.cancel();
   }
 }
