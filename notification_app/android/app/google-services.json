@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "654865930698",
+    "project_id": "kasubook",
+    "storage_bucket": "kasubook.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:654865930698:android:94512cf96cfbf98f6fd733",
+        "android_client_info": {
+          "package_name": "com.company.notification_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "654865930698-1r4khe3hf3acf9pu9g0749bku2o9gqkp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBn-4X4ZQ0_MyYlo0Xh-qerL0vbteQW2mc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "654865930698-1r4khe3hf3acf9pu9g0749bku2o9gqkp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

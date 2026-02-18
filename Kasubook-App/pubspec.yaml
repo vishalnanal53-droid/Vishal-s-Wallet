@@ -16,7 +16,8 @@ dependencies:
   cloud_firestore: ^5.0.0
   firebase_messaging: ^15.0.0
   flutter_svg: ^2.0.17
-  
+  fl_chart: ^0.66.0
+
   # Export dependencies
   excel: ^4.0.0
   pdf: ^3.10.0

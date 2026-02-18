@@ -3,6 +3,17 @@
 import 'package:flutter/material.dart';
 import 'firebase_service.dart';
 
+// ── Dark Theme Color Palette ──────────────────────────────────────────────────
+const _kBg        = Color(0xFF1A1B2E); // Deep dark navy background
+const _kCard      = Color(0xFF242535); // Card surface
+const _kCardBorder= Color(0xFF2E2F45); // Subtle card border
+const _kAccent    = Color(0xFF7C3AED); // Vivid purple accent
+const _kAccent2   = Color(0xFF8B5CF6); // Lighter purple
+const _kTextPrim  = Color(0xFFFFFFFF); // Primary text
+const _kTextSec   = Color(0xFFA0A3BD); // Secondary / muted text
+const _kInputBg   = Color(0xFF1E1F32); // Input field background
+const _kInputBorder= Color(0xFF3A3B52);// Input border
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -33,27 +44,13 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _error = null;
-      _loading = true;
-    });
-
+    setState(() { _error = null; _loading = true; });
     try {
       if (_isSignUp) {
-        await _fb.signUp(
-          _emailController.text.trim(),
-          _passwordController.text,
-          _usernameController.text.trim(),
-        );
+        await _fb.signUp(_emailController.text.trim(), _passwordController.text, _usernameController.text.trim());
       } else {
-        await _fb.signIn(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
+        await _fb.signIn(_emailController.text.trim(), _passwordController.text);
       }
-      // Navigation to Dashboard is handled by the auth-state listener in
-      // your root widget (see main.dart example below).
     } catch (err) {
       setState(() => _error = err.toString());
     } finally {
@@ -64,25 +61,28 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _kBg,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF6366F1), Color(0xFFA855F7), Color(0xFFEC4899)],
+            colors: [Color(0xFF1A1B2E), Color(0xFF16172A), Color(0xFF1E1040)],
           ),
         ),
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: Container(
               width: double.infinity,
               constraints: const BoxConstraints(maxWidth: 400),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                color: _kCard,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _kCardBorder, width: 1),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 24, offset: const Offset(0, 10)),
+                  BoxShadow(color: Colors.black.withAlpha(100), blurRadius: 40, offset: const Offset(0, 20)),
+                  BoxShadow(color: const Color(0xFF7C3AED).withAlpha(30), blurRadius: 60, offset: const Offset(0, 10)),
                 ],
               ),
               padding: const EdgeInsets.all(32.0),
@@ -96,40 +96,39 @@ class _LoginPageState extends State<LoginPage> {
                     Align(
                       alignment: Alignment.center,
                       child: Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [Color(0xFF6366F1), Color(0xFF9333EA)],
+                            colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withAlpha(80), blurRadius: 20, offset: const Offset(0, 8))],
                         ),
                         child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 32),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Title (gradient text)
-                    Text(
-                      'KasuBook',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        foreground: Paint()
-                          ..shader = const LinearGradient(
-                            colors: [Color(0xFF4F46E5), Color(0xFF9333EA)],
-                          ).createShader(const Rect.fromLTWH(0, 0, 200, 40)),
+                    // Title
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Color(0xFF8B5CF6), Color(0xFFC4B5FD)],
+                      ).createShader(bounds),
+                      child: const Text(
+                        'KasuBook',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Your Personal Money Manager',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+                      style: TextStyle(color: _kTextSec, fontSize: 14),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
 
                     // Username (sign-up only)
                     if (_isSignUp) ...[
@@ -160,34 +159,39 @@ class _LoginPageState extends State<LoginPage> {
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                          color: const Color(0xFF9CA3AF),
+                          color: _kTextSec,
                         ),
                         onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password i s required';
+                        if (v == null || v.isEmpty) return 'Password is required';
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     // Error
                     if (_error != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8)),
-                        child: Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 14)),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B1919),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF7F1D1D).withAlpha(100)),
+                        ),
+                        child: Text(_error!, style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 13)),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                     ],
 
                     // Submit button
                     SizedBox(
-                      height: 48,
+                      height: 52,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF9333EA)]),
-                          borderRadius: BorderRadius.circular(10),
+                          gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)]),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withAlpha(80), blurRadius: 20, offset: const Offset(0, 8))],
                         ),
                         child: ElevatedButton(
                           onPressed: _loading ? null : _handleSubmit,
@@ -195,30 +199,24 @@ class _LoginPageState extends State<LoginPage> {
                             backgroundColor: Colors.transparent,
                             disabledBackgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                           child: Text(
                             _loading ? 'Please wait...' : (_isSignUp ? 'Sign Up' : 'Sign In'),
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     // Toggle
                     GestureDetector(
-                      onTap: () => setState(() {
-                        _isSignUp = !_isSignUp;
-                        _error = null;
-                      }),
+                      onTap: () => setState(() { _isSignUp = !_isSignUp; _error = null; }),
                       child: Text(
-                        _isSignUp
-                            ? 'Already have an account? Sign In'
-                            : "Don't have an account? Sign Up",
+                        _isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up",
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Color(0xFF4F46E5), fontSize: 14, fontWeight: FontWeight.w600),
+                        style: const TextStyle(color: _kAccent2, fontSize: 14, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -231,10 +229,9 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
   Widget _label(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextSec)),
   );
 
   Widget _textField(
@@ -249,16 +246,20 @@ class _LoginPageState extends State<LoginPage> {
     keyboardType: keyboardType,
     obscureText: obscureText,
     validator: validator,
+    style: const TextStyle(color: _kTextPrim, fontSize: 14),
     decoration: InputDecoration(
       suffixIcon: suffixIcon,
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD1D5DB))),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFD1D5DB))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFDC2626))),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2)),
+      hintStyle: const TextStyle(color: Color(0xFF5C5E7A)),
+      filled: true,
+      fillColor: _kInputBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kInputBorder)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kInputBorder)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kAccent, width: 2)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFEF4444))),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2)),
+      errorStyle: const TextStyle(color: Color(0xFFFCA5A5)),
     ),
   );
 }
