@@ -318,8 +318,13 @@ class _SettingsState extends State<Settings> {
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   const Text('Total Initial Balance', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kGreen)),
-                  Text('₹${(_cash + _totalUpi).toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _kGreen)),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('₹${(_cash + _totalUpi).toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _kGreen)),
+                    ),
+                  ),
                 ]),
               ),
               const SizedBox(height: 8),
@@ -433,6 +438,84 @@ class _SettingsState extends State<Settings> {
         ),
         const SizedBox(height: 14),
 
+        // ── Important Notes Card ──────────────────────────────────────────
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1A0E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFBBF24).withAlpha(80)),
+            boxShadow: [
+              BoxShadow(color: const Color(0xFFFBBF24).withAlpha(20), blurRadius: 16, offset: const Offset(0, 4)),
+            ],
+          ),
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFBBF24).withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.warning_amber_rounded, size: 18, color: Color(0xFFFBBF24)),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Important Notes',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFFBBF24)),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              const Divider(color: Color(0xFF3A3010), height: 1),
+              const SizedBox(height: 14),
+
+              // Notes list
+              _noteItem(
+                icon: Icons.lock_outline_rounded,
+                color: const Color(0xFFFBBF24),
+                title: 'Initial Amount is Fixed Forever',
+                body: 'Cash and bank balances you enter here are set once and locked after first save. This is your starting balance — it cannot be changed later.',
+              ),
+              _noteItem(
+                icon: Icons.account_balance_outlined,
+                color: const Color(0xFF60A5FA),
+                title: 'Bank Accounts Cannot Be Deleted',
+                body: 'Once a bank account is linked and saved, it cannot be removed. This ensures your transaction history stays accurate and complete.',
+              ),
+              _noteItem(
+                icon: Icons.add_card_outlined,
+                color: const Color(0xFF34D399),
+                title: 'New Bank Accounts Can Be Added Anytime',
+                body: 'You can add more UPI/bank accounts at any time even after locking. New accounts are always editable until saved.',
+              ),
+              _noteItem(
+                icon: Icons.sync_alt_rounded,
+                color: const Color(0xFFA78BFA),
+                title: 'Old UPI Transactions Auto-Assigned',
+                body: 'Any transaction recorded as "UPI" before adding bank accounts will be automatically assigned to your first linked bank.',
+              ),
+              _noteItem(
+                icon: Icons.history_rounded,
+                color: const Color(0xFFFB923C),
+                title: 'Balance is Calculated from Transactions',
+                body: 'Your current balance = Initial amount + all income − all expenses. Every transaction affects your live balance in real time.',
+              ),
+              _noteItem(
+                icon: Icons.cloud_done_outlined,
+                color: const Color(0xFF34D399),
+                title: 'All Data Synced to Cloud',
+                body: 'Your transactions and settings are securely stored in Firebase. Data is available across devices when you log in.',
+                isLast: true,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
         // About card
         Container(
           decoration: BoxDecoration(
@@ -473,6 +556,46 @@ class _SettingsState extends State<Settings> {
           ]),
         ),
       ],
+    );
+  }
+
+  // ── Important note item ───────────────────────────────────────────────
+  Widget _noteItem({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String body,
+    bool isLast = false,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 2),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withAlpha(20),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+                const SizedBox(height: 3),
+                Text(body,
+                    style: const TextStyle(fontSize: 12, color: _kTextSec, height: 1.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

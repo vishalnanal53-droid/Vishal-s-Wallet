@@ -22,25 +22,6 @@ const List<String> _DEFAULT_TAGS = [
   'Bills', 'Entertainment', 'Health', 'Others',
 ];
 
-// Dark-adapted tag styles for dark background
-const Map<String, _TagStyle> _TAG_STYLES = {
-  'Food':          _TagStyle(bg: Color(0xFF3B2A0E), fg: Color(0xFFFBBF24)),
-  'Snacks':        _TagStyle(bg: Color(0xFF332808), fg: Color(0xFFFCD34D)),
-  'Travel':        _TagStyle(bg: Color(0xFF2D1B69), fg: Color(0xFFC4B5FD)),
-  'Friends':       _TagStyle(bg: Color(0xFF3B0F24), fg: Color(0xFFF9A8D4)),
-  'Shopping':      _TagStyle(bg: Color(0xFF1E2060), fg: Color(0xFFA5B4FC)),
-  'Bills':         _TagStyle(bg: Color(0xFF3B0F0F), fg: Color(0xFFFCA5A5)),
-  'Entertainment': _TagStyle(bg: Color(0xFF0F3B2E), fg: Color(0xFF6EE7B7)),
-  'Health':        _TagStyle(bg: Color(0xFF0F2E1B), fg: Color(0xFF86EFAC)),
-  'Others':        _TagStyle(bg: Color(0xFF252636), fg: Color(0xFF9CA3AF)),
-};
-
-class _TagStyle {
-  final Color bg;
-  final Color fg;
-  const _TagStyle({required this.bg, required this.fg});
-}
-
 class TransactionForm extends StatefulWidget {
   final List<Transaction> transactions;
   final UserSettings? settings;
@@ -333,6 +314,7 @@ class _TransactionFormState extends State<TransactionForm> {
                 _label('Description'),
                 TextFormField(
                   controller: _descriptionController,
+                  textCapitalization: TextCapitalization.sentences,
                   style: const TextStyle(color: _kTextPrim),
                   decoration: _inputDeco('Add a note...'),
                   maxLines: 3,
@@ -453,15 +435,17 @@ class _TransactionFormState extends State<TransactionForm> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: isActive ? activeColor : _kInputBorder, width: isActive ? 1.5 : 1),
         ),
-        child: Text(label, textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w700, color: isActive ? activeColor : _kTextSec, fontSize: 15)),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700, color: isActive ? _kTextPrim : _kTextSec, fontSize: 15)),
+        ),
       ),
     );
   }
 
   Widget _tagChip(String tag) {
     final isSelected = _selectedTag == tag;
-    final style = _TAG_STYLES[tag] ?? const _TagStyle(bg: Color(0xFF252636), fg: Color(0xFF9CA3AF));
     final isCustom = !_DEFAULT_TAGS.contains(tag);
 
     return GestureDetector(
@@ -469,19 +453,19 @@ class _TransactionFormState extends State<TransactionForm> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: style.bg,
+          color: isSelected ? _kAccent.withAlpha(25) : _kInputBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? _kAccent2 : Colors.transparent, width: 2),
+          border: Border.all(color: isSelected ? _kAccent2 : _kInputBorder, width: 1.5),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(tag, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: style.fg)),
+            Text(tag, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isSelected ? _kTextPrim : _kTextSec)),
             if (isCustom) ...[
               const SizedBox(width: 6),
               GestureDetector(
                 onTap: () => _handleDeleteTag(tag),
-                child: Icon(Icons.close, size: 14, color: style.fg.withAlpha(160)),
+                child: Icon(Icons.close, size: 14, color: isSelected ? _kTextPrim.withAlpha(160) : _kTextSec.withAlpha(160)),
               ),
             ],
           ],

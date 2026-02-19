@@ -3,10 +3,11 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.example.kasubook"
+    namespace = "com.company.kasubook"
     compileSdk = 36  // Changed from 36 to 34 for better compatibility
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +22,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.kasubook"
+        applicationId = "com.company.kasubook"
         minSdk = flutter.minSdkVersion  // Minimum SDK for notifications
         targetSdk = 34
         versionCode = flutter.versionCode

@@ -35,6 +35,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   String _timeFilter = 'All';
   Set<String> _selectedTags = {};
   int _pieTouchedIndex = -1;
+  DateTime? _customStart;
+  DateTime? _customEnd;
 
   @override
   void initState() {
@@ -55,6 +57,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         if (d.isBefore(weekAgo)) return false;
       } else if (_timeFilter == 'Month') {
         if (!(d.month == now.month && d.year == now.year)) return false;
+      }
+      else if (_timeFilter == 'Custom') {
+        if (_customStart != null) {
+          final start = DateTime(_customStart!.year, _customStart!.month, _customStart!.day);
+          if (d.isBefore(start)) return false;
+        }
+        if (_customEnd != null) {
+          final end = DateTime(_customEnd!.year, _customEnd!.month, _customEnd!.day, 23, 59, 59);
+          if (d.isAfter(end)) return false;
+        }
       }
       if (_selectedTags.isNotEmpty && !_selectedTags.contains(t.tag)) return false;
       return true;
@@ -198,7 +210,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         const Text('Time Period', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextSec)),
         const SizedBox(height: 10),
         Row(
-          children: ['All', 'Today', 'Week', 'Month'].map((f) {
+          children: ['All', 'Today', 'Week', 'Month', 'Custom'].map((f) {
             final isSelected = _timeFilter == f;
             return Expanded(
               child: GestureDetector(
@@ -222,6 +234,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             );
           }).toList(),
         ),
+        if (_timeFilter == 'Custom') ...[
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _datePicker('Start Date', _customStart, isStart: true)),
+            const SizedBox(width: 12),
+            Expanded(child: _datePicker('End Date', _customEnd, isStart: false)),
+          ]),
+        ],
       ],
     ));
   }
@@ -266,7 +286,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   border: Border.all(color: isSelected ? _kAccent2 : _kInputBorder, width: 1.5),
                 ),
                 child: Text(tag, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                    color: isSelected ? _kAccent2 : _kTextSec)),
+                    color: isSelected ? _kTextPrim : _kTextSec)),
               ),
             );
           }).toList(),
@@ -393,13 +413,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Row(children: [
-            const Icon(Icons.account_balance_outlined, size: 14, color: Color(0xFF60A5FA)),
-            const SizedBox(width: 6),
-            Text(bankName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextPrim)),
-          ]),
+          Expanded(
+            child: Row(children: [
+              const Icon(Icons.account_balance_outlined, size: 14, color: Color(0xFF60A5FA)),
+              const SizedBox(width: 6),
+              Flexible(child: Text(bankName, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextPrim))),
+            ]),
+          ),
+          const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('₹${expense.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _kRed)),
+            FittedBox(fit: BoxFit.scaleDown, child: Text('₹${expense.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _kRed))),
             Text('${pct.toStringAsFixed(1)}% of total', style: const TextStyle(fontSize: 11, color: _kTextSec)),
           ]),
         ]),
@@ -427,7 +450,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 16, color: color),
       const SizedBox(height: 6),
-      Text('₹${_formatK(value.abs())}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text('₹${_formatK(value.abs())}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+      ),
       const SizedBox(height: 2),
       Text(label, style: const TextStyle(fontSize: 10, color: _kTextSec)),
     ]),
@@ -457,5 +483,48 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
     return v.toStringAsFixed(0);
+  }
+
+  Future<void> _pickCustomDate({required bool isStart}) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (isStart ? _customStart : _customEnd) ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(primary: Color(0xFF7C3AED), surface: Color(0xFF242535)),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() { if (isStart) _customStart = picked; else _customEnd = picked; });
+    }
+  }
+
+  Widget _datePicker(String label, DateTime? value, {required bool isStart}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kTextSec)),
+      const SizedBox(height: 5),
+      GestureDetector(
+        onTap: () => _pickCustomDate(isStart: isStart),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: _kInputBg,
+            border: Border.all(color: _kInputBorder),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(
+              value != null ? '${value.day}/${value.month}/${value.year}' : 'Pick date',
+              style: TextStyle(fontSize: 13, color: value != null ? _kTextPrim : const Color(0xFF5C5E7A)),
+            ),
+            const Icon(Icons.calendar_today, size: 16, color: _kTextSec),
+          ]),
+        ),
+      ),
+    ]);
   }
 }

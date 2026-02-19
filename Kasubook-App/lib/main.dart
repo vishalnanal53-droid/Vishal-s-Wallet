@@ -9,35 +9,33 @@ import 'LoginPage.dart';
 import 'DashboardPage.dart';
 import 'notification_service.dart';
 
-class _FirebaseOptions {
-  static FirebaseOptions? get currentPlatform {
-    if (kIsWeb) {
-      return web;
-    }
-    return null;
-  }
-
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDvSwVUFKiQOUJNEqFuHp4O_o2mthRdCGM',
-    authDomain: 'kasubook.firebaseapp.com',
-    projectId: 'kasubook',
-    storageBucket: 'kasubook.firebasestorage.app',
-    messagingSenderId: '654865930698',
-    appId: '1:654865930698:web:38f4cf7b65c3f7f56fd733',
-    measurementId: 'G-G9HXP92JSD',
-  );
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: _FirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: kIsWeb
+        ? const FirebaseOptions(
+            apiKey: 'AIzaSyDvSwVUFKiQOUJNEqFuHp4O_o2mthRdCGM',
+            authDomain: 'kasubook.firebaseapp.com',
+            projectId: 'kasubook',
+            storageBucket: 'kasubook.firebasestorage.app',
+            messagingSenderId: '654865930698',
+            appId: '1:654865930698:web:38f4cf7b65c3f7f56fd733',
+            measurementId: 'G-G9HXP92JSD',
+          )
+        : null, // Android reads from google-services.json automatically
+  );
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   runApp(const KasuBookApp());
 }
 
-class KasuBookApp extends StatelessWidget {
+class KasuBookApp extends StatefulWidget {
   const KasuBookApp({super.key});
 
+  @override
+  State<KasuBookApp> createState() => _KasuBookAppState();
+}
+
+class _KasuBookAppState extends State<KasuBookApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -56,6 +54,12 @@ class KasuBookApp extends StatelessWidget {
       home: StreamBuilder(
         stream: FirebaseService().authStateStream,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Scaffold(
+              backgroundColor: const Color(0xFF1A1B2E),
+              body: Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red), textAlign: TextAlign.center)),
+            );
+          }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _SplashScreen();
           }
@@ -69,9 +73,14 @@ class KasuBookApp extends StatelessWidget {
   }
 }
 
-class _SplashScreen extends StatelessWidget {
+class _SplashScreen extends StatefulWidget {
   const _SplashScreen();
 
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Container(

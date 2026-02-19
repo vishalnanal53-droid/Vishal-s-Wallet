@@ -65,17 +65,22 @@ class _DashboardPageState extends State<DashboardPage> {
     final uid = _fb.currentUser?.uid;
     if (uid == null) return;
 
-    await _notificationService.init();
-    await _notificationService.initFCM();
-    await _notificationService.requestPermissions();
-    _notificationService.startAdminNotificationListener(uid);
+    // 1. Initialize notifications in background (don't block UI loading)
+    _initNotifications(uid);
 
-    await _fb.ensureSettingsDoc(uid, _fb.currentUser?.email);
+    // 2. Ensure settings doc exists, then start migration (don't block listeners)
+    _fb.ensureSettingsDoc(uid, _fb.currentUser?.email).then((_) {
+      _fb.migrateOldUpiRecords(uid).then((count) {
+        if (count > 0) debugPrint('[Migration] Updated $count old UPI record(s) to new format');
+      }).catchError((e) => debugPrint('[Migration] Error: $e'));
+    }).catchError((e) => debugPrint("Ensure settings error: $e"));
 
-    // Migrate old UPI records (payment_method:"UPI" → "UPI.BankName") silently on login
-    _fb.migrateOldUpiRecords(uid).then((count) {
-      if (count > 0) debugPrint('[Migration] Updated $count old UPI record(s) to new format');
-    }).catchError((e) => debugPrint('[Migration] Error: $e'));
+    // 3. Set a safety timeout to disable loading if streams hang
+    Future.delayed(const Duration(seconds: 10), () {
+      if (mounted && _loading) {
+        setState(() => _loading = false);
+      }
+    });
 
     _settingsSub = _fb.settingsStream(uid).listen((settings) {
       if (mounted) setState(() => _settings = settings);
@@ -90,6 +95,17 @@ class _DashboardPageState extends State<DashboardPage> {
       debugPrint('Transactions stream error: $e');
       if (mounted) setState(() => _loading = false);
     });
+  }
+
+  Future<void> _initNotifications(String uid) async {
+    try {
+      await _notificationService.init();
+      await _notificationService.initFCM();
+      await _notificationService.requestPermissions();
+      _notificationService.startAdminNotificationListener(uid);
+    } catch (e) {
+      debugPrint("Notification init error: $e");
+    }
   }
 
   Future<void> _autoAssignUnassignedUpi(String uid, List<Transaction> txs) async {
@@ -136,13 +152,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final breakdown = _calculateBreakdown();
     final upiAccountBalances = _calculateUpiAccountBalances();
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
       backgroundColor: _kBg,
+      resizeToAvoidBottomInset: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final headerH = constraints.maxHeight * 0.30;
-          final contentH = constraints.maxHeight * 0.70;
+          // Header height ha limit pandrom (Min: 200, Max: 300)
+          final headerH = (constraints.maxHeight * 0.30).clamp(200.0, 300.0);
+          final contentH = constraints.maxHeight - headerH;
 
           return Column(
             children: [
@@ -159,22 +178,22 @@ class _DashboardPageState extends State<DashboardPage> {
                           controller: _pageController,
                           children: [
                             SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
+                              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
                               child: TransactionForm(transactions: _transactions, settings: _settings),
                             ),
                             SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
+                              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
                               child: TransactionHistory(transactions: _transactions, settings: _settings),
                             ),
                             SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
-                              child: _settings != null ? Settings(settings: _settings!) : const SizedBox(),
-                            ),
-                            SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
+                              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
                               child: _settings != null
                                   ? AnalyticsPage(transactions: _transactions, settings: _settings!)
                                   : const SizedBox(),
+                            ),
+                            SingleChildScrollView(
+                              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+                              child: _settings != null ? Settings(settings: _settings!) : const SizedBox(),
                             ),
                           ],
                         ),
@@ -301,9 +320,13 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            '₹${amount.toStringAsFixed(2)}',
-            style: TextStyle(color: isPositive ? _kTextPrim : _kRed, fontSize: 22, fontWeight: FontWeight.bold),
+          // Amount perusa ponalum cut aagama irukka FittedBox
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '₹${amount.toStringAsFixed(2)}',
+              style: TextStyle(color: isPositive ? _kTextPrim : _kRed, fontSize: 22, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -366,7 +389,7 @@ class _DashboardPageState extends State<DashboardPage> {
             double page = 0;
             if (_pageController.hasClients && _pageController.page != null) page = _pageController.page!;
             double diff = (page - index).abs().clamp(0.0, 1.0);
-            Color color = Color.lerp(_kAccent2, _kTextSec, diff)!;
+            Color color = Color.lerp(_kTextPrim, _kTextSec, diff)!;
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -376,7 +399,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 children: [
                   Icon(icon, size: 18, color: color),
                   const SizedBox(height: 3),
-                  Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
                 ],
               ),
             );
@@ -386,18 +409,232 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _loadingScreen() {
-    return Container(
-      color: _kBg,
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _loadingScreen() => const _AnimatedLoadingScreen();
+}
+
+// ─── Animated Loading Screen ────────────────────────────────────────────────
+class _AnimatedLoadingScreen extends StatefulWidget {
+  const _AnimatedLoadingScreen();
+
+  @override
+  State<_AnimatedLoadingScreen> createState() => _AnimatedLoadingScreenState();
+}
+
+class _AnimatedLoadingScreenState extends State<_AnimatedLoadingScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+  late final AnimationController _rotateCtrl;
+  late final AnimationController _fadeCtrl;
+  late final AnimationController _dotsCtrl;
+
+  late final Animation<double> _pulse;
+  late final Animation<double> _rotate;
+  late final Animation<double> _fade;
+  late final Animation<double> _dots;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))
+      ..repeat(reverse: true);
+    _pulse = Tween(begin: 0.85, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+
+    _rotateCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))
+      ..repeat();
+    _rotate = Tween(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _rotateCtrl, curve: Curves.linear));
+
+    _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeIn);
+    _fadeCtrl.forward();
+
+    _dotsCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
+    _dots = Tween(begin: 0.0, end: 3.0).animate(_dotsCtrl);
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _rotateCtrl.dispose();
+    _fadeCtrl.dispose();
+    _dotsCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: FadeTransition(
+        opacity: _fade,
+        child: Stack(
           children: [
-            CircularProgressIndicator(color: Color(0xFF7C3AED)),
-            SizedBox(height: 16),
-            Text('Loading...', style: TextStyle(color: _kTextSec, fontSize: 18)),
+            // ── Background glow blobs ──
+            Positioned(
+              top: -80,
+              left: -60,
+              child: _glowBlob(180, const Color(0xFF7C3AED).withAlpha(40)),
+            ),
+            Positioned(
+              bottom: -60,
+              right: -40,
+              child: _glowBlob(200, const Color(0xFF8B5CF6).withAlpha(30)),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.45,
+              left: MediaQuery.of(context).size.width * 0.6,
+              child: _glowBlob(120, const Color(0xFF6D28D9).withAlpha(25)),
+            ),
+
+            // ── Center content ──
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Spinning ring + pulsing wallet
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Outer spinning ring
+                        AnimatedBuilder(
+                          animation: _rotate,
+                          builder: (_, __) => Transform.rotate(
+                            angle: _rotate.value * 2 * 3.14159,
+                            child: Container(
+                              width: 110,
+                              height: 110,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: SweepGradient(
+                                  colors: [
+                                    const Color(0xFF7C3AED).withAlpha(0),
+                                    const Color(0xFF7C3AED),
+                                    const Color(0xFFA78BFA),
+                                    const Color(0xFF7C3AED).withAlpha(0),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Inner dark circle (mask)
+                        Container(
+                          width: 90,
+                          height: 90,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _kBg,
+                          ),
+                        ),
+                        // Pulsing wallet icon
+                        AnimatedBuilder(
+                          animation: _pulse,
+                          builder: (_, __) => Transform.scale(
+                            scale: _pulse.value,
+                            child: Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF7C3AED).withAlpha(120),
+                                    blurRadius: 24,
+                                    spreadRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.account_balance_wallet_rounded,
+                                color: Colors.white,
+                                size: 34,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // App name
+                  const Text(
+                    'KasuBook',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: _kTextPrim,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Animated dots subtitle
+                  AnimatedBuilder(
+                    animation: _dots,
+                    builder: (_, __) {
+                      final count = _dots.value.floor() + 1;
+                      final dots = '.' * count;
+                      return Text(
+                        'Loading$dots',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: _kTextSec,
+                          letterSpacing: 0.5,
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 48),
+
+                  // Progress bar
+                  SizedBox(
+                    width: 160,
+                    child: AnimatedBuilder(
+                      animation: _rotateCtrl,
+                      builder: (_, __) => ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          backgroundColor: _kCard,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color.lerp(const Color(0xFF7C3AED), const Color(0xFFA78BFA), _pulseCtrl.value)!,
+                          ),
+                          minHeight: 4,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _glowBlob(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [BoxShadow(color: color, blurRadius: 60, spreadRadius: 20)],
       ),
     );
   }

@@ -59,10 +59,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   String _searchQuery = '';
   _TimeFilter _timeFilter = _TimeFilter.all;
   String _tagFilter = 'all';
+  String _typeFilter = 'all';
   DateTime? _customStart;
   DateTime? _customEnd;
 
-  List<Transaction> get _filtered {
+  List<Transaction> _getBaseFiltered() {
     var list = widget.transactions.toList();
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
@@ -99,6 +100,14 @@ class _TransactionHistoryState extends State<TransactionHistory> {
         break;
       case _TimeFilter.all:
         break;
+    }
+    return list;
+  }
+
+  List<Transaction> get _filtered {
+    var list = _getBaseFiltered();
+    if (_typeFilter != 'all') {
+      list = list.where((t) => t.type == _typeFilter).toList();
     }
     list.sort((a, b) => _txDate(b).compareTo(_txDate(a)));
     return list;
@@ -276,9 +285,14 @@ class _TransactionHistoryState extends State<TransactionHistory> {
 
   @override
   Widget build(BuildContext context) {
+    final baseList = _getBaseFiltered();
+    final totalIncome = baseList.where((t) => t.type == 'income').fold(0.0, (sum, t) => sum + t.amount);
+    final totalExpense = baseList.where((t) => t.type == 'expense').fold(0.0, (sum, t) => sum + t.amount);
     final filtered = _filtered;
-    final totalIncome = filtered.where((t) => t.type == 'income').fold(0.0, (sum, t) => sum + t.amount);
-    final totalExpense = filtered.where((t) => t.type == 'expense').fold(0.0, (sum, t) => sum + t.amount);
+    
+    const int displayLimit = 50;
+    final bool hasMore = filtered.length > displayLimit;
+    final List<Transaction> displayList = hasMore ? filtered.take(displayLimit).toList() : filtered;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -380,32 +394,44 @@ class _TransactionHistoryState extends State<TransactionHistory> {
 
         // Summary cards
         Row(children: [
-          Expanded(child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _kGreen.withAlpha(20),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _kGreen.withAlpha(60)),
+          Expanded(child: GestureDetector(
+            onTap: () => setState(() => _typeFilter = _typeFilter == 'income' ? 'all' : 'income'),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _typeFilter == 'income' ? _kGreen.withAlpha(40) : _kGreen.withAlpha(20),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _typeFilter == 'income' ? _kGreen : _kGreen.withAlpha(60), width: _typeFilter == 'income' ? 1.5 : 1),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Total Income', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kGreen)),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('₹${totalIncome.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _kGreen)),
+                ),
+              ]),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Total Income', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kGreen)),
-              const SizedBox(height: 4),
-              Text('₹${totalIncome.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _kGreen)),
-            ]),
           )),
           const SizedBox(width: 12),
-          Expanded(child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _kRed.withAlpha(20),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _kRed.withAlpha(60)),
+          Expanded(child: GestureDetector(
+            onTap: () => setState(() => _typeFilter = _typeFilter == 'expense' ? 'all' : 'expense'),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _typeFilter == 'expense' ? _kRed.withAlpha(40) : _kRed.withAlpha(20),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _typeFilter == 'expense' ? _kRed : _kRed.withAlpha(60), width: _typeFilter == 'expense' ? 1.5 : 1),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Total Expense', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kRed)),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('₹${totalExpense.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _kRed)),
+                ),
+              ]),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Total Expense', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kRed)),
-              const SizedBox(height: 4),
-              Text('₹${totalExpense.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _kRed)),
-            ]),
           )),
         ]),
         const SizedBox(height: 14),
@@ -418,7 +444,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
             border: Border.all(color: _kCardBorder),
             boxShadow: [BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 20, offset: const Offset(0, 8))],
           ),
-          child: filtered.isEmpty
+          child: displayList.isEmpty
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 48),
                   child: Column(children: [
@@ -430,12 +456,45 @@ class _TransactionHistoryState extends State<TransactionHistory> {
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filtered.length,
+                  itemCount: displayList.length + (hasMore ? 1 : 0),
                   separatorBuilder: (_, __) => const Divider(height: 1, color: _kDivider),
-                  itemBuilder: (context, i) => _TransactionRow(
-                    tx: filtered[i],
-                    upiAccountNames: widget.settings?.upiAccounts.map((a) => a.bankName).toList() ?? [],
-                  ),
+                  itemBuilder: (context, i) {
+                    if (hasMore && i == displayList.length) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: [
+                            const Text('Showing last 50 transactions', style: TextStyle(color: _kTextSec, fontSize: 12)),
+                            const SizedBox(height: 10),
+                            GestureDetector(
+                              onTap: _showExportOptions,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _kAccent.withAlpha(20),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: _kAccent.withAlpha(50)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.download_rounded, size: 16, color: _kAccent2),
+                                    SizedBox(width: 6),
+                                    Text('Download to see more', style: TextStyle(color: _kAccent2, fontWeight: FontWeight.w600, fontSize: 13)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return _TransactionRow(
+                      tx: displayList[i],
+                      upiAccountNames: widget.settings?.upiAccounts.map((a) => a.bankName).toList() ?? [],
+                    );
+                  },
                 ),
         ),
       ],
