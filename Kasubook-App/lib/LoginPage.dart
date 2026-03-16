@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'firebase_service.dart';
+import 'ForgotPasswordPage.dart';
 
 // ── Dark Theme Color Palette ──────────────────────────────────────────────────
 const _kBg        = Color(0xFF1A1B2E); // Deep dark navy background
@@ -168,6 +169,14 @@ class _LoginPageState extends State<LoginPage> {
                         return null;
                       },
                     ),
+                    if (!_isSignUp)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordPage())),
+                          child: const Text('Forgot Password?', style: TextStyle(color: _kAccent2, fontSize: 13, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
                     const SizedBox(height: 20),
 
                     // Error

@@ -351,8 +351,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
       _legendDot(_kRed, 'Expense'), const SizedBox(width: 14),
       _legendDot(_kGreen, 'Income'), const SizedBox(width: 14),
-      _legendDot(_kTextSec, 'Cash'), const SizedBox(width: 8),
-      _legendDot(_kAccent2, 'UPI'),
     ]);
   }
 

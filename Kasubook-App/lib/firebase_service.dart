@@ -18,10 +18,12 @@ class FirebaseService {
   }
 
   Future<void> signUp(String email, String password, String username) async {
-    final cred = await auth.createUserWithEmailAndPassword(email: email, password: password);
+    final cred = await auth.createUserWithEmailAndPassword(
+        email: email, password: password);
     final uid = cred.user!.uid;
     await firestore.collection('users').doc(uid).set({
       'id': uid,
+      'email': email.toLowerCase(),   // ← ADD THIS LINE
       'username': username,
       'initial_cash': 0,
       'upi_accounts': [],
@@ -46,6 +48,7 @@ class FirebaseService {
     if (!doc.exists) {
       await firestore.collection('users').doc(uid).set({
         'id': uid,
+        'email': email?.toLowerCase() ?? '',   // ← ADD THIS LINE
         'username': email?.split('@')[0] ?? 'User',
         'initial_cash': 0,
         'upi_accounts': [],
@@ -53,6 +56,11 @@ class FirebaseService {
         'initial_amount_locked': false,
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
+      });
+    } else if (!(doc.data()?.containsKey('email') ?? false)) {
+      // Existing doc missing email field → patch it
+      await firestore.collection('users').doc(uid).update({
+        'email': email?.toLowerCase() ?? '',
       });
     }
   }
@@ -121,6 +129,47 @@ class FirebaseService {
       'description': description ?? '',
       'transaction_date': transactionDate,
     });
+  }
+
+  Future<void> transferFunds({
+    required String uid,
+    required double amount,
+    required String fromMethod, // 'Cash' or bank name
+    required String toMethod,   // 'Cash' or bank name
+    required String date,
+  }) async {
+    final batch = firestore.batch();
+    final txCol = firestore.collection('users').doc(uid).collection('transactions');
+
+    // 1. Expense from Source
+    final doc1 = txCol.doc();
+    final isCashFrom = fromMethod == 'Cash';
+    batch.set(doc1, {
+      'user_id': uid,
+      'type': 'expense',
+      'amount': amount,
+      'payment_method': isCashFrom ? 'Cash' : 'UPI.$fromMethod',
+      'bank_name': isCashFrom ? null : fromMethod,
+      'tag': 'Transfer',
+      'description': 'Transfer to $toMethod',
+      'transaction_date': date,
+    });
+
+    // 2. Income to Destination
+    final doc2 = txCol.doc();
+    final isCashTo = toMethod == 'Cash';
+    batch.set(doc2, {
+      'user_id': uid,
+      'type': 'income',
+      'amount': amount,
+      'payment_method': isCashTo ? 'Cash' : 'UPI.$toMethod',
+      'bank_name': isCashTo ? null : toMethod,
+      'tag': 'Transfer',
+      'description': 'Transfer from $fromMethod',
+      'transaction_date': date,
+    });
+
+    await batch.commit();
   }
 
   /// Reassign an old UPI transaction (bankName == null) to a specific bank
