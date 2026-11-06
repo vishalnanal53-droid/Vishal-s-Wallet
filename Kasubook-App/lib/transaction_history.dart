@@ -131,9 +131,17 @@ class _TransactionHistoryState extends State<TransactionHistory> {
     final Map<String, Map<String, double>> balances = {};
     for (var t in sorted) {
       if (t.type == 'income') {
-        if (t.method == 'Cash') cash += t.amount; else upi += t.amount;
+        if (t.method == 'Cash') {
+          cash += t.amount;
+        } else {
+          upi += t.amount;
+        }
       } else {
-        if (t.method == 'Cash') cash -= t.amount; else upi -= t.amount;
+        if (t.method == 'Cash') {
+          cash -= t.amount;
+        } else {
+          upi -= t.amount;
+        }
       }
       balances[t.id] = {'cash': cash, 'upi': upi};
     }
@@ -182,7 +190,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       final t = filtered[i];
       final b = balances[t.id] ?? {'cash': 0.0, 'upi': 0.0};
       final isIncome = t.type == 'income';
-      if (isIncome) totalCredit += t.amount; else totalDebit += t.amount;
+      if (isIncome) {
+        totalCredit += t.amount;
+      } else {
+        totalDebit += t.amount;
+      }
       sheet.appendRow([
         IntCellValue(i + 1), TextCellValue(_formatDateOnly(_txDate(t))), TextCellValue(_formatTimeOnly(_txDate(t))),
         TextCellValue('${t.tag} ${t.description.isNotEmpty ? "- ${t.description}" : ""}'),
@@ -210,7 +222,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
     final balances = _calculateRunningBalances();
     double totalCredit = 0, totalDebit = 0;
     for (var t in filtered) {
-      if (t.type == 'income') totalCredit += t.amount; else totalDebit += t.amount;
+      if (t.type == 'income') {
+        totalCredit += t.amount;
+      } else {
+        totalDebit += t.amount;
+      }
     }
     pdf.addPage(
       pw.MultiPage(
@@ -279,7 +295,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       ),
     );
     if (picked != null) {
-      setState(() { if (isStart) _customStart = picked; else _customEnd = picked; });
+      setState(() { if (isStart) {
+        _customStart = picked;
+      } else {
+        _customEnd = picked;
+      } });
     }
   }
 

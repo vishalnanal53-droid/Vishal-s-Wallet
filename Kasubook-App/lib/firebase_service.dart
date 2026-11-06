@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction;
 import 'models.dart';
 
 class FirebaseService {
-  static final FirebaseService _instance = FirebaseService._();
+  static const FirebaseService _instance = FirebaseService._();
   factory FirebaseService() => _instance;
   const FirebaseService._();
 
@@ -249,7 +249,9 @@ class FirebaseService {
     }
 
     if (batchSize > 0) batches.add(batch);
-    for (final b in batches) await b.commit();
+    for (final b in batches) {
+      await b.commit();
+    }
 
     return count;
   }

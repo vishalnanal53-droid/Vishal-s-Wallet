@@ -152,10 +152,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           _darkCard(Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                const Icon(Icons.bar_chart, size: 18, color: _kGreen),
-                const SizedBox(width: 8),
-                const Text('Cash vs UPI Spending', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kTextPrim)),
+              const Row(children: [
+                Icon(Icons.bar_chart, size: 18, color: _kGreen),
+                SizedBox(width: 8),
+                Text('Cash vs UPI Spending', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kTextPrim)),
               ]),
               const SizedBox(height: 4),
               const Text('Expense & Income split by payment method', style: TextStyle(fontSize: 12, color: _kTextSec)),
@@ -174,10 +174,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             _darkCard(Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  const Icon(Icons.account_balance_outlined, size: 18, color: Color(0xFF60A5FA)),
-                  const SizedBox(width: 8),
-                  const Text('UPI Account Breakdown', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kTextPrim)),
+                const Row(children: [
+                  Icon(Icons.account_balance_outlined, size: 18, color: Color(0xFF60A5FA)),
+                  SizedBox(width: 8),
+                  Text('UPI Account Breakdown', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kTextPrim)),
                 ]),
                 const SizedBox(height: 4),
                 const Text('Expenses per UPI account', style: TextStyle(fontSize: 12, color: _kTextSec)),
@@ -497,7 +497,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ),
     );
     if (picked != null) {
-      setState(() { if (isStart) _customStart = picked; else _customEnd = picked; });
+      setState(() { if (isStart) {
+        _customStart = picked;
+      } else {
+        _customEnd = picked;
+      } });
     }
   }
 

@@ -144,8 +144,9 @@ class _DashboardPageState extends State<DashboardPage> {
       try {
         final date = DateTime.tryParse(t.transactionDate);
         if (date != null && date.year == now.year && date.month == now.month) {
-          if (t.type == 'income') income += t.amount;
-          else if (t.type == 'expense') expense += t.amount;
+          if (t.type == 'income') {
+            income += t.amount;
+          } else if (t.type == 'expense') expense += t.amount;
         }
       } catch (_) {}
     }
